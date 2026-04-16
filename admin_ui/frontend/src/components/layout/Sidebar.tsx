@@ -2,6 +2,8 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import {
     LayoutDashboard,
+    History,
+    CalendarClock,
     Server,
     Workflow,
     MessageSquare,
@@ -110,6 +112,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false }) => {
             <div className={`flex-1 py-6 ${isCollapsed ? 'px-2 space-y-1' : 'px-3'}`}>
                 <SidebarGroup title="Overview" isCollapsed={isCollapsed}>
                     <SidebarItem to="/" icon={LayoutDashboard} label="Dashboard" end isCollapsed={isCollapsed} />
+                    <SidebarItem to="/history" icon={History} label="Call History" isCollapsed={isCollapsed} />
+                    <SidebarItem to="/scheduling" icon={CalendarClock} label="Call Scheduling" isCollapsed={isCollapsed} />
                 </SidebarGroup>
 
                 <SidebarGroup title="Configuration" isCollapsed={isCollapsed}>
