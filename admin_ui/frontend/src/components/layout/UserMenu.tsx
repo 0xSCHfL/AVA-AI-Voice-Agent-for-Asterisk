@@ -166,7 +166,6 @@ const UserMenu = () => {
                 <div className="absolute right-0 top-full mt-2 w-64">
                     <div className="bg-[#1e1e1e] rounded-[14px] border border-white/[0.1] shadow-xl overflow-visible">
                         <div className="p-3.5 border-b border-white/[0.08]">
-                        <div className="p-3.5 border-b border-white/[0.08]">
                             <div className="flex items-center justify-between mb-2">
                                 <div className="flex items-center gap-1.5 text-[13px] font-medium text-[#e0e0e0]">
                                     <div className="w-[15px] h-[15px] rounded-full border-2 border-[#e0e0e0] border-r-0 border-transparent" />
