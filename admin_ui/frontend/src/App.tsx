@@ -1,5 +1,5 @@
 import React, { useState, createContext, useContext, lazy, Suspense } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { ConfirmDialogProvider } from './hooks/useConfirmDialog';
 import { AuthProvider, RequireAuth } from './auth/AuthContext';
