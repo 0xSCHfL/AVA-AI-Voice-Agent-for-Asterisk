@@ -29,7 +29,6 @@ import {
     Users,
     Settings,
 } from 'lucide-react';
-import { useAuth } from '../../auth/AuthContext';
 
 const SidebarItem = ({ to, icon: Icon, label, end = false }: { to: string, icon: any, label: string, end?: boolean }) => (
     <NavLink
@@ -130,28 +129,6 @@ const Sidebar = () => {
                         API Docs
                     </a>
                 </SidebarGroup>
-            </div>
-
-            <div className="p-4 border-t border-border/50">
-                <div className="flex items-center gap-3 px-2 mb-3">
-                    <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center text-xs font-bold uppercase">
-                        {user?.username?.substring(0, 2) || 'AD'}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{user?.username || 'Admin'}</p>
-                        <p className="text-xs text-muted-foreground truncate capitalize">{user?.role || 'user'}</p>
-                    </div>
-                </div>
-                <div className="flex gap-2">
-                    <button
-                        onClick={logout}
-                        className="flex-1 flex items-center justify-center gap-2 px-2 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 rounded-md transition-colors"
-                        title="Logout"
-                    >
-                        <LogOut className="w-3 h-3" />
-                        Logout
-                    </button>
-                </div>
             </div>
         </aside>
     );

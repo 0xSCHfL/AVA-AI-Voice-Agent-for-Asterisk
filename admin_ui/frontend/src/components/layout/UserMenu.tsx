@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronUp, Settings, CreditCard, Users, FileText, BarChart3, HelpCircle, ExternalLink, LogOut, User as UserIcon } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { ChevronUp, Settings, CreditCard, Users, FileText, BarChart3, HelpCircle, ExternalLink, LogOut, User as UserIcon, Sun, Moon, Monitor } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
+import { useTheme } from '../../hooks/useTheme';
 
 const menuGroups = [
     {
@@ -26,6 +28,8 @@ const menuGroups = [
 
 const UserMenu = () => {
     const { user, logout } = useAuth();
+    const navigate = useNavigate();
+    const { theme, cycleTheme } = useTheme();
     const [isOpen, setIsOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
 
@@ -38,6 +42,13 @@ const UserMenu = () => {
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
+
+    const handleItemClick = (label: string) => {
+        setIsOpen(false);
+        if (label === 'Settings') {
+            navigate('/settings');
+        }
+    };
 
     return (
         <div className="relative" ref={menuRef}>
@@ -106,6 +117,7 @@ const UserMenu = () => {
                                 {group.items.map((item, itemIndex) => (
                                     <div
                                         key={itemIndex}
+                                        onClick={() => handleItemClick(item.label)}
                                         className="flex items-center justify-between px-4 py-1.5 text-[13px] text-[#d0d0d0] cursor-pointer hover:bg-white/[0.06] rounded-sm mx-1"
                                     >
                                         <div className="flex items-center gap-3">
@@ -119,6 +131,29 @@ const UserMenu = () => {
                                 ))}
                             </div>
                         ))}
+
+                        <div className="py-1.5 border-b border-white/[0.08]">
+                            <div className="px-4 py-1.5 text-[10px] text-[#666] uppercase tracking-[0.06em]">
+                                Appearance
+                            </div>
+                            <div className="flex items-center justify-between px-4 py-2 mx-1">
+                                <div className="flex items-center gap-3 text-[13px] text-[#d0d0d0]">
+                                    {theme === 'light' && <Sun className="w-4 h-4 text-[#888]" />}
+                                    {theme === 'dark' && <Moon className="w-4 h-4 text-[#888]" />}
+                                    {theme === 'system' && <Monitor className="w-4 h-4 text-[#888]" />}
+                                    <span className="capitalize">{theme}</span>
+                                </div>
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        cycleTheme();
+                                    }}
+                                    className="text-[11px] text-[#888] hover:text-[#e0e0e0] underline"
+                                >
+                                    Switch
+                                </button>
+                            </div>
+                        </div>
 
                         <div
                             onClick={logout}
