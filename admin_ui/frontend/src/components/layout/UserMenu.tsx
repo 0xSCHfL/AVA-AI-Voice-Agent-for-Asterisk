@@ -116,7 +116,7 @@ const UserMenu = () => {
                 </div>
                 
                 {hasFlyout && hoveredItem === item.label && (
-                    <div className="absolute right-full top-0 mr-1 w-44 bg-[#2a2a2a] border border-white/[0.12] rounded-[10px] py-1.5 z-20">
+                    <div className="absolute right-[calc(100%+6px)] top-[-6px] w-44 bg-[#2a2a2a] border border-white/[0.12] rounded-[10px] py-1.5 z-20">
                         {item.subItems?.map((subItem, subIndex) => (
                             <div
                                 key={subIndex}
@@ -124,7 +124,7 @@ const UserMenu = () => {
                                     e.stopPropagation();
                                     handleSubItemClick(subItem, item.label);
                                 }}
-                                className="flex items-center justify-between px-3 py-2 text-[13px] text-[#d0d0d0] cursor-pointer hover:bg-white/[0.07]"
+                                className="flex items-center justify-between px-3.5 py-2 text-[13px] text-[#d0d0d0] cursor-pointer hover:bg-white/[0.07]"
                             >
                                 <span>{subItem.label}</span>
                                 <span className="flex items-center gap-2">
@@ -164,7 +164,8 @@ const UserMenu = () => {
 
             {isOpen && (
                 <div className="absolute right-0 top-full mt-2 w-64">
-                    <div className="bg-[#1e1e1e] rounded-[14px] border border-white/[0.1] overflow-hidden shadow-xl">
+                    <div className="bg-[#1e1e1e] rounded-[14px] border border-white/[0.1] shadow-xl overflow-visible">
+                        <div className="p-3.5 border-b border-white/[0.08]">
                         <div className="p-3.5 border-b border-white/[0.08]">
                             <div className="flex items-center justify-between mb-2">
                                 <div className="flex items-center gap-1.5 text-[13px] font-medium text-[#e0e0e0]">
