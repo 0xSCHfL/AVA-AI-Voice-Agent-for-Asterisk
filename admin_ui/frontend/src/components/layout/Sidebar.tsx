@@ -29,6 +29,7 @@ import {
     Users,
     Settings,
 } from 'lucide-react';
+import { useAuth } from '../../auth/AuthContext';
 
 const SidebarItem = ({ to, icon: Icon, label, end = false }: { to: string, icon: any, label: string, end?: boolean }) => (
     <NavLink
@@ -58,7 +59,6 @@ const SidebarGroup = ({ title, children }: { title: string, children: React.Reac
 );
 
 const Sidebar = () => {
-    const { user, logout } = useAuth();
 
     return (
         <aside className="w-64 border-r border-border bg-card/50 backdrop-blur flex flex-col h-full">
