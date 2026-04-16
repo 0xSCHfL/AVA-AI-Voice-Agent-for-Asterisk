@@ -4,6 +4,7 @@ import {
     LayoutDashboard,
     History,
     CalendarClock,
+    Zap,
     Server,
     Workflow,
     MessageSquare,
@@ -114,6 +115,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false }) => {
                     <SidebarItem to="/" icon={LayoutDashboard} label="Dashboard" end isCollapsed={isCollapsed} />
                     <SidebarItem to="/history" icon={History} label="Call History" isCollapsed={isCollapsed} />
                     <SidebarItem to="/scheduling" icon={CalendarClock} label="Call Scheduling" isCollapsed={isCollapsed} />
+                    <SidebarItem to="/wizard" icon={Zap} label="Setup Wizard" isCollapsed={isCollapsed} />
                 </SidebarGroup>
 
                 <SidebarGroup title="Configuration" isCollapsed={isCollapsed}>
