@@ -1,186 +1,218 @@
 import { useState } from 'react';
-import { Settings, Lock, User, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { 
+    User, 
+    Lock, 
+    CreditCard, 
+    Globe, 
+    Bell, 
+    Download, 
+    LogOut, 
+    Trash2, 
+    Shield,
+    ChevronRight,
+    Loader2,
+    CheckCircle,
+    AlertCircle
+} from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import axios from 'axios';
 
-const SettingsPage = () => {
-    const { user } = useAuth();
-    const [activeTab, setActiveTab] = useState<'profile' | 'security'>('profile');
+interface SettingsItemProps {
+    icon: React.ElementType;
+    title: string;
+    description: string;
+    action?: React.ReactNode;
+    onClick?: () => void;
+    danger?: boolean;
+}
 
-    return (
-        <div className="space-y-6">
+const SettingsItem = ({ icon: Icon, title, description, action, onClick, danger }: SettingsItemProps) => (
+    <div 
+        className={`flex items-center justify-between py-4 border-b border-border last:border-b-0 ${onClick ? 'cursor-pointer hover:bg-accent/50 -mx-4 px-4' : ''}`}
+        onClick={onClick}
+    >
+        <div className="flex items-start gap-4">
+            <div className={`p-2 rounded-lg ${danger ? 'bg-red-500/10' : 'bg-accent'}`}>
+                <Icon className={`w-5 h-5 ${danger ? 'text-red-500' : 'text-muted-foreground'}`} />
+            </div>
             <div>
-                <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
-                <p className="text-muted-foreground mt-1">
-                    Manage your account settings and preferences
-                </p>
-            </div>
-
-            <div className="flex gap-6">
-                <div className="w-48 shrink-0">
-                    <nav className="space-y-1">
-                        <button
-                            onClick={() => setActiveTab('profile')}
-                            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                                activeTab === 'profile'
-                                    ? 'bg-primary/10 text-primary'
-                                    : 'text-muted-foreground hover:bg-accent hover:text-foreground'
-                            }`}
-                        >
-                            <User className="w-4 h-4" />
-                            Profile
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('security')}
-                            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                                activeTab === 'security'
-                                    ? 'bg-primary/10 text-primary'
-                                    : 'text-muted-foreground hover:bg-accent hover:text-foreground'
-                            }`}
-                        >
-                            <Lock className="w-4 h-4" />
-                            Security
-                        </button>
-                    </nav>
-                </div>
-
-                <div className="flex-1">
-                    {activeTab === 'profile' && <ProfileTab user={user} />}
-                    {activeTab === 'security' && <SecurityTab />}
-                </div>
+                <p className={`font-medium ${danger ? 'text-red-500' : ''}`}>{title}</p>
+                <p className="text-sm text-muted-foreground mt-0.5">{description}</p>
             </div>
         </div>
-    );
-};
+        {action && <div>{action}</div>}
+        {onClick && !action && <ChevronRight className="w-5 h-5 text-muted-foreground" />}
+    </div>
+);
 
-const ProfileTab = ({ user }: { user: any }) => {
-    return (
-        <div className="bg-card rounded-xl border border-border p-6">
-            <h2 className="text-lg font-semibold mb-4">Profile Information</h2>
-            <div className="space-y-4">
-                <div className="flex items-center gap-4">
-                    <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-xl font-bold uppercase">
-                        {user?.username?.substring(0, 2) || 'AD'}
-                    </div>
-                    <div>
-                        <p className="font-medium text-lg">{user?.username || 'Admin'}</p>
-                        <p className="text-sm text-muted-foreground capitalize">{user?.role || 'user'}</p>
-                    </div>
-                </div>
-                <div className="pt-4 border-t border-border">
-                    <p className="text-sm text-muted-foreground">
-                        Account details are managed by the administrator.
-                    </p>
-                </div>
-            </div>
-        </div>
-    );
-};
+const SettingsPage = () => {
+    const { user, logout } = useAuth();
+    const [givenName, setGivenName] = useState('');
+    const [isSaving, setIsSaving] = useState(false);
+    const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-const SecurityTab = () => {
-    const [currentPassword, setCurrentPassword] = useState('');
-    const [newPassword, setNewPassword] = useState('');
-    const [confirmPassword, setConfirmPassword] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
-    const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setMessage(null);
-
-        if (newPassword !== confirmPassword) {
-            setMessage({ type: 'error', text: 'New passwords do not match' });
-            return;
-        }
-
-        if (newPassword.length < 6) {
-            setMessage({ type: 'error', text: 'Password must be at least 6 characters' });
-            return;
-        }
-
-        setIsLoading(true);
+    const handleUpdateName = async () => {
+        if (!givenName.trim()) return;
+        setIsSaving(true);
+        setSaveMessage(null);
+        
         try {
-            await axios.post('/api/auth/change-password', {
-                old_password: currentPassword,
-                new_password: newPassword
-            });
-            setMessage({ type: 'success', text: 'Password changed successfully' });
-            setCurrentPassword('');
-            setNewPassword('');
-            setConfirmPassword('');
+            await axios.post('/api/auth/update-profile', { given_name: givenName });
+            setSaveMessage({ type: 'success', text: 'Name updated successfully' });
         } catch (error: any) {
-            setMessage({
-                type: 'error',
-                text: error.response?.data?.detail || 'Failed to change password'
-            });
+            setSaveMessage({ type: 'error', text: error.response?.data?.detail || 'Failed to update name' });
         } finally {
-            setIsLoading(false);
+            setIsSaving(false);
+        }
+    };
+
+    const handleSignOutAll = () => {
+        if (confirm('Are you sure you want to sign out of all devices?')) {
+            logout();
+        }
+    };
+
+    const handleDeleteAccount = () => {
+        if (confirm('Are you sure you want to delete your entire account? This action cannot be undone.')) {
+            alert('Account deletion would be processed here');
         }
     };
 
     return (
-        <div className="bg-card rounded-xl border border-border p-6">
-            <h2 className="text-lg font-semibold mb-4">Change Password</h2>
-            <form onSubmit={handleSubmit} className="space-y-4 max-w-md">
-                {message && (
-                    <div className={`flex items-center gap-2 p-3 rounded-lg ${
-                        message.type === 'success' 
-                            ? 'bg-green-500/10 text-green-600 dark:text-green-400' 
-                            : 'bg-red-500/10 text-red-600 dark:text-red-400'
-                    }`}>
-                        {message.type === 'success' ? (
-                            <CheckCircle className="w-4 h-4" />
-                        ) : (
-                            <AlertCircle className="w-4 h-4" />
-                        )}
-                        {message.text}
+        <div className="max-w-4xl mx-auto space-y-8">
+            <div>
+                <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
+                <p className="text-muted-foreground mt-1">
+                    Manage your profile and workspace memberships.
+                </p>
+            </div>
+
+            {/* Profile Section */}
+            <div className="bg-card rounded-xl border border-border p-6">
+                <div className="flex items-center gap-3 mb-6">
+                    <User className="w-5 h-5 text-muted-foreground" />
+                    <h2 className="text-lg font-semibold">Profile</h2>
+                </div>
+
+                <div className="space-y-4">
+                    <div className="flex items-center justify-between py-4 border-b border-border">
+                        <div>
+                            <p className="font-medium">E-Mail Address</p>
+                            <p className="text-sm text-muted-foreground mt-0.5">{user?.username || 'admin@example.com'}</p>
+                        </div>
                     </div>
-                )}
 
-                <div>
-                    <label className="block text-sm font-medium mb-1.5">Current Password</label>
-                    <input
-                        type="password"
-                        value={currentPassword}
-                        onChange={(e) => setCurrentPassword(e.target.value)}
-                        className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
-                        required
+                    <div className="py-4 border-b border-border">
+                        <p className="font-medium mb-2">Given Name</p>
+                        <div className="flex gap-3">
+                            <input
+                                type="text"
+                                value={givenName}
+                                onChange={(e) => setGivenName(e.target.value)}
+                                placeholder="Enter your name"
+                                className="flex-1 px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
+                            />
+                            <button
+                                onClick={handleUpdateName}
+                                disabled={isSaving || !givenName.trim()}
+                                className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
+                            >
+                                {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
+                                Update Given Name
+                            </button>
+                        </div>
+                        {saveMessage && (
+                            <div className={`mt-2 flex items-center gap-2 text-sm ${
+                                saveMessage.type === 'success' ? 'text-green-500' : 'text-red-500'
+                            }`}>
+                                {saveMessage.type === 'success' ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+                                {saveMessage.text}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="flex items-center justify-between py-4">
+                        <div>
+                            <p className="font-medium">Current Plan</p>
+                            <p className="text-sm text-muted-foreground mt-0.5">Free</p>
+                        </div>
+                        <button className="flex items-center gap-2 px-4 py-2 text-sm font-medium border border-border rounded-lg hover:bg-accent transition-colors">
+                            <CreditCard className="w-4 h-4" />
+                            Manage Subscription
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {/* Account Section */}
+            <div className="bg-card rounded-xl border border-border p-6">
+                <div className="space-y-0">
+                    <SettingsItem
+                        icon={Shield}
+                        title="Two-Factor Authentication"
+                        description="Disabled"
+                        action={
+                            <button className="text-sm font-medium text-primary hover:underline">
+                                Add Two-Factor Authentication
+                            </button>
+                        }
+                    />
+
+                    <SettingsItem
+                        icon={CreditCard}
+                        title="Usage & Credit Ceilings"
+                        description="See Details"
+                    />
+
+                    <SettingsItem
+                        icon={Bell}
+                        title="Comment Notifications"
+                        description="Manage your email notification preferences for comments"
+                        action={
+                            <button className="text-sm font-medium text-primary hover:underline">
+                                Manage Notifications
+                            </button>
+                        }
+                    />
+
+                    <SettingsItem
+                        icon={Download}
+                        title="Download your data"
+                        description="Request a copy of your data for export. You will receive an email when your export is ready for download."
+                        action={
+                            <button className="text-sm font-medium text-primary hover:underline">
+                                Request Data Export
+                            </button>
+                        }
+                    />
+
+                    <SettingsItem
+                        icon={Globe}
+                        title="Application language"
+                        description="English"
                     />
                 </div>
+            </div>
 
-                <div>
-                    <label className="block text-sm font-medium mb-1.5">New Password</label>
-                    <input
-                        type="password"
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
-                        required
-                        minLength={6}
+            {/* Danger Zone */}
+            <div className="bg-card rounded-xl border border-red-500/20 p-6">
+                <div className="space-y-0">
+                    <SettingsItem
+                        icon={LogOut}
+                        title="Sign out of all devices"
+                        description="Sign out of all devices and sessions. You will need to sign in again on all devices."
+                        onClick={handleSignOutAll}
+                    />
+
+                    <SettingsItem
+                        icon={Trash2}
+                        title="Delete Entire Account"
+                        description="Permanently delete your entire account across all workspaces. You will no longer be able to create an account with this email."
+                        onClick={handleDeleteAccount}
+                        danger
                     />
                 </div>
-
-                <div>
-                    <label className="block text-sm font-medium mb-1.5">Confirm New Password</label>
-                    <input
-                        type="password"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
-                        required
-                        minLength={6}
-                    />
-                </div>
-
-                <button
-                    type="submit"
-                    disabled={isLoading}
-                    className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
-                >
-                    {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-                    Change Password
-                </button>
-            </form>
+            </div>
         </div>
     );
 };
