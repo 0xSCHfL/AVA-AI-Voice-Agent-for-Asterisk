@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Settings, Lock, User, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
-import { useAuth } from '../../auth/AuthContext';
+import { useAuth } from '../auth/AuthContext';
 import axios from 'axios';
 
 const SettingsPage = () => {
