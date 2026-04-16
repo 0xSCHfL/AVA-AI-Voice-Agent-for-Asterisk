@@ -20,8 +20,8 @@ const menuGroups = [
     },
     {
         items: [
-            { label: 'Documentation', icon: HelpCircle, external: true },
-            { label: 'API Reference', icon: ExternalLink, external: true },
+            { label: 'Documentation', icon: HelpCircle, link: '/help' },
+            { label: 'API Reference', icon: ExternalLink, link: '/docs' },
         ],
     },
 ];
@@ -43,10 +43,16 @@ const UserMenu = () => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    const handleItemClick = (label: string) => {
+    const handleItemClick = (item: { label: string; link?: string }) => {
         setIsOpen(false);
-        if (label === 'Settings') {
+        if (item.label === 'Settings') {
             navigate('/settings');
+        } else if (item.link) {
+            if (item.link.startsWith('/')) {
+                navigate(item.link);
+            } else {
+                window.open(item.link, '_blank');
+            }
         }
     };
 
@@ -117,14 +123,14 @@ const UserMenu = () => {
                                 {group.items.map((item, itemIndex) => (
                                     <div
                                         key={itemIndex}
-                                        onClick={() => handleItemClick(item.label)}
+                                        onClick={() => handleItemClick(item)}
                                         className="flex items-center justify-between px-4 py-1.5 text-[13px] text-[#d0d0d0] cursor-pointer hover:bg-white/[0.06] rounded-sm mx-1"
                                     >
                                         <div className="flex items-center gap-3">
                                             <item.icon className="w-4 h-4 text-[#888]" />
                                             {item.label}
                                         </div>
-                                        {item.external && (
+                                        {item.link && (
                                             <span className="text-[11px] text-[#555]">›</span>
                                         )}
                                     </div>
@@ -136,22 +142,31 @@ const UserMenu = () => {
                             <div className="px-4 py-1.5 text-[10px] text-[#666] uppercase tracking-[0.06em]">
                                 Appearance
                             </div>
-                            <div className="flex items-center justify-between px-4 py-2 mx-1">
-                                <div className="flex items-center gap-3 text-[13px] text-[#d0d0d0]">
+                            <div className="flex items-center gap-3 px-4 py-2 mx-1">
+                                <div className="flex items-center gap-2 text-[13px] text-[#d0d0d0]">
                                     {theme === 'light' && <Sun className="w-4 h-4 text-[#888]" />}
                                     {theme === 'dark' && <Moon className="w-4 h-4 text-[#888]" />}
                                     {theme === 'system' && <Monitor className="w-4 h-4 text-[#888]" />}
-                                    <span className="capitalize">{theme}</span>
+                                    Theme
                                 </div>
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        cycleTheme();
+                                <select
+                                    value={theme}
+                                    onChange={(e) => {
+                                        const newTheme = e.target.value as 'light' | 'dark' | 'system';
+                                        const order: ('light' | 'dark' | 'system')[] = ['light', 'dark', 'system'];
+                                        const currentIndex = order.indexOf(theme);
+                                        const newIndex = order.indexOf(newTheme);
+                                        const steps = (newIndex - currentIndex + 3) % 3;
+                                        for (let i = 0; i < steps; i++) {
+                                            cycleTheme();
+                                        }
                                     }}
-                                    className="text-[11px] text-[#888] hover:text-[#e0e0e0] underline"
+                                    className="ml-auto bg-[#2a2a2a] text-[#e0e0e0] text-[12px] border border-white/[0.12] rounded-[6px] px-2 py-1 cursor-pointer focus:outline-none"
                                 >
-                                    Switch
-                                </button>
+                                    <option value="light">Light</option>
+                                    <option value="dark">Dark</option>
+                                    <option value="system">System</option>
+                                </select>
                             </div>
                         </div>
 

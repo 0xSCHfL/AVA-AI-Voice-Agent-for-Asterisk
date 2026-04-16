@@ -1,12 +1,10 @@
 import React from 'react';
 import { useLocation } from 'react-router-dom';
-import { ChevronRight, Sun, Moon, Monitor } from 'lucide-react';
-import { useTheme } from '../../hooks/useTheme';
+import { ChevronRight } from 'lucide-react';
 import UserMenu from './UserMenu';
 
 const Header = () => {
     const location = useLocation();
-    const { theme, cycleTheme } = useTheme();
     const pathSegments = location.pathname.split('/').filter(Boolean);
 
     const getBreadcrumbName = (segment: string) => {
@@ -43,17 +41,6 @@ const Header = () => {
 
             <div className="flex items-center gap-2">
                 <UserMenu />
-                <button
-                    type="button"
-                    onClick={cycleTheme}
-                    className="p-2 rounded-md hover:bg-accent hover:text-accent-foreground transition-colors"
-                    title={`Theme: ${theme} (click to cycle)`}
-                    aria-label={`Current theme: ${theme}. Activate to cycle theme`}
-                >
-                    {theme === 'light' && <Sun className="w-4 h-4" />}
-                    {theme === 'dark' && <Moon className="w-4 h-4" />}
-                    {theme === 'system' && <Monitor className="w-4 h-4" />}
-                </button>
             </div>
         </header>
     );
