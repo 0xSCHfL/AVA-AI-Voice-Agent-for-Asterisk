@@ -25,7 +25,8 @@ import {
     Phone,
     CalendarClock,
     LogOut,
-    Lock
+    Lock,
+    Users
 } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
 import ChangePasswordModal from '../auth/ChangePasswordModal';
@@ -93,6 +94,7 @@ const Sidebar = () => {
                     <SidebarItem to="/profiles" icon={Sliders} label="Audio Profiles" />
                     <SidebarItem to="/tools" icon={Wrench} label="Tools" />
                     <SidebarItem to="/mcp" icon={Plug} label="MCP" />
+                    <SidebarItem to="/users" icon={Users} label="Users" />
                 </SidebarGroup>
 
                 <SidebarGroup title="Advanced Settings">
@@ -138,7 +140,7 @@ const Sidebar = () => {
                     </div>
                     <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">{user?.username || 'Admin'}</p>
-                        <p className="text-xs text-muted-foreground truncate">Administrator</p>
+                        <p className="text-xs text-muted-foreground truncate capitalize">{user?.role || 'user'}</p>
                     </div>
                 </div>
                 <div className="flex gap-2">

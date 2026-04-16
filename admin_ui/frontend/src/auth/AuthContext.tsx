@@ -3,7 +3,10 @@ import axios from 'axios';
 
 interface User {
     username: string;
+    email?: string | null;
+    role?: 'admin' | 'user';
     disabled?: boolean;
+    must_change_password?: boolean;
 }
 
 interface AuthContextType {

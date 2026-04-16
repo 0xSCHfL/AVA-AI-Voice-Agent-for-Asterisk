@@ -12,6 +12,7 @@ import axios from 'axios';
 import { AuthProvider } from './auth/AuthContext';
 import { RequireAuth } from './auth/RequireAuth';
 import LoginPage from './pages/LoginPage';
+import UserManagementPage from './pages/UserManagementPage';
 
 // Core Configuration Pages
 import ProvidersPage from './pages/ProvidersPage';
@@ -146,6 +147,7 @@ function App() {
                                             <Route path="/profiles" element={<ProfilesPage />} />
                                             <Route path="/tools" element={<ToolsPage />} />
                                             <Route path="/mcp" element={<MCPPage />} />
+                                            <Route path="/users" element={<UserManagementPage />} />
 
                                             {/* Advanced Settings */}
                                             <Route path="/vad" element={<VADPage />} />
