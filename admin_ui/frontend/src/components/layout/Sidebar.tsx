@@ -26,11 +26,10 @@ import {
     CalendarClock,
     LogOut,
     Lock,
-    Users
+    Users,
+    Settings,
 } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
-import ChangePasswordModal from '../auth/ChangePasswordModal';
-import { useState } from 'react';
 
 const SidebarItem = ({ to, icon: Icon, label, end = false }: { to: string, icon: any, label: string, end?: boolean }) => (
     <NavLink
@@ -61,7 +60,6 @@ const SidebarGroup = ({ title, children }: { title: string, children: React.Reac
 
 const Sidebar = () => {
     const { user, logout } = useAuth();
-    const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
 
     return (
         <aside className="w-64 border-r border-border bg-card/50 backdrop-blur flex flex-col h-full">
@@ -120,6 +118,7 @@ const Sidebar = () => {
                 </SidebarGroup>
 
                 <SidebarGroup title="Support">
+                    <SidebarItem to="/settings" icon={Settings} label="Settings" />
                     <SidebarItem to="/help" icon={HelpCircle} label="Help" />
                     <a
                         href="/docs"
@@ -145,14 +144,6 @@ const Sidebar = () => {
                 </div>
                 <div className="flex gap-2">
                     <button
-                        onClick={() => setIsPasswordModalOpen(true)}
-                        className="flex-1 flex items-center justify-center gap-2 px-2 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
-                        title="Change Password"
-                    >
-                        <Lock className="w-3 h-3" />
-                        Password
-                    </button>
-                    <button
                         onClick={logout}
                         className="flex-1 flex items-center justify-center gap-2 px-2 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 rounded-md transition-colors"
                         title="Logout"
@@ -162,11 +153,6 @@ const Sidebar = () => {
                     </button>
                 </div>
             </div>
-
-            <ChangePasswordModal
-                isOpen={isPasswordModalOpen}
-                onClose={() => setIsPasswordModalOpen(false)}
-            />
         </aside>
     );
 };

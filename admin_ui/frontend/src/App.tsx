@@ -36,6 +36,9 @@ import DockerPage from './pages/System/DockerPage';
 // Help
 import HelpPage from './pages/HelpPage';
 
+// Settings
+import SettingsPage from './pages/SettingsPage';
+
 // Lazy-loaded heavy pages (code-splitting for better initial load)
 const Wizard = lazy(() => import('./pages/Wizard'));
 const RawYamlPage = lazy(() => import('./pages/Advanced/RawYamlPage'));
@@ -168,6 +171,9 @@ function App() {
 
                                             {/* Help */}
                                             <Route path="/help" element={<HelpPage />} />
+
+                                            {/* Settings */}
+                                            <Route path="/settings" element={<SettingsPage />} />
 
                                             {/* Fallback */}
                                             <Route path="*" element={<Navigate to="/" replace />} />

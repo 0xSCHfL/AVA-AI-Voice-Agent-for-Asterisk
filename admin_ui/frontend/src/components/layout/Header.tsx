@@ -2,6 +2,7 @@ import React from 'react';
 import { useLocation } from 'react-router-dom';
 import { ChevronRight, Sun, Moon, Monitor } from 'lucide-react';
 import { useTheme } from '../../hooks/useTheme';
+import UserMenu from './UserMenu';
 
 const Header = () => {
     const location = useLocation();
@@ -41,6 +42,7 @@ const Header = () => {
             </div>
 
             <div className="flex items-center gap-2">
+                <UserMenu />
                 <button
                     type="button"
                     onClick={cycleTheme}
