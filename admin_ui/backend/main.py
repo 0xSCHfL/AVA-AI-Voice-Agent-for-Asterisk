@@ -17,12 +17,16 @@ def _ensure_outbound_prompt_assets() -> None:
     consent/voicemail recordings before first use.
     """
     try:
-        project_root = (os.getenv("PROJECT_ROOT") or "/app/project").strip() or "/app/project"
+        project_root = (
+            os.getenv("PROJECT_ROOT") or "/app/project"
+        ).strip() or "/app/project"
         src_dir = Path(project_root) / "assets" / "outbound_prompts" / "en-US"
         if not src_dir.exists():
             return
 
-        media_dir = Path(os.getenv("AAVA_MEDIA_DIR") or "/mnt/asterisk_media/ai-generated")
+        media_dir = Path(
+            os.getenv("AAVA_MEDIA_DIR") or "/mnt/asterisk_media/ai-generated"
+        )
         try:
             media_dir.mkdir(parents=True, exist_ok=True)
         except Exception:
@@ -48,12 +52,14 @@ def _ensure_outbound_prompt_assets() -> None:
         # Never block Admin UI startup for this.
         pass
 
+
 # Load environment variables (wizard will create .env from .env.example on first Next click)
 load_dotenv(settings.ENV_PATH)
 
 # NOTE: DB permission alignment is handled by install/preflight steps (host-side),
 # keeping runtime code minimal and CI security scanners happy.
 _ensure_outbound_prompt_assets()
+
 
 def _cleanup_orphaned_model_downloads() -> None:
     """
@@ -64,9 +70,9 @@ def _cleanup_orphaned_model_downloads() -> None:
         models_dir = Path(os.getenv("AAVA_MODELS_DIR") or "/mnt/asterisk_models")
         if not models_dir.exists():
             return
-        
+
         cleaned_up = 0
-        
+
         # Clean up files matching *.part
         for part_file in models_dir.rglob("*.part"):
             try:
@@ -75,7 +81,7 @@ def _cleanup_orphaned_model_downloads() -> None:
                     cleaned_up += 1
             except Exception:
                 pass
-                
+
         # Clean up directories matching .extract_*
         for root, dirs, files in os.walk(models_dir):
             for d in list(dirs):  # Use list to safely modify while iterating
@@ -84,15 +90,20 @@ def _cleanup_orphaned_model_downloads() -> None:
                     try:
                         shutil.rmtree(extract_path)
                         cleaned_up += 1
-                        dirs.remove(d) # Remove to prevent os.walk from entering it
+                        dirs.remove(d)  # Remove to prevent os.walk from entering it
                     except Exception:
                         pass
-        
+
         if cleaned_up > 0:
-            logging.getLogger(__name__).info("Cleaned up %d orphaned model download temp file(s)/dir(s).", cleaned_up)
-            
+            logging.getLogger(__name__).info(
+                "Cleaned up %d orphaned model download temp file(s)/dir(s).", cleaned_up
+            )
+
     except Exception as e:
-        logging.getLogger(__name__).warning("Failed to clean up orphaned model downloads: %s", e)
+        logging.getLogger(__name__).warning(
+            "Failed to clean up orphaned model downloads: %s", e
+        )
+
 
 _cleanup_orphaned_model_downloads()
 
@@ -114,7 +125,19 @@ if _is_remote_bind and _raw_jwt_secret in _placeholder_secrets:
         _uvicorn_host,
     )
 
-from api import config, system, wizard, logs, local_ai, ollama, mcp, calls, outbound, tools, docs  # noqa: E402
+from api import (
+    config,
+    system,
+    wizard,
+    logs,
+    local_ai,
+    ollama,
+    mcp,
+    calls,
+    outbound,
+    tools,
+    docs,
+)  # noqa: E402
 import auth  # noqa: E402
 
 # Allow disabling API docs in production for security hardening
@@ -157,8 +180,14 @@ Most endpoints require JWT authentication. Obtain a token via `POST /api/auth/lo
     openapi_url="/openapi.json" if _enable_api_docs else None,
     openapi_tags=[
         {"name": "auth", "description": "Authentication and user management"},
-        {"name": "config", "description": "Configuration management (YAML, .env, providers)"},
-        {"name": "system", "description": "System operations, containers, updates, health"},
+        {
+            "name": "config",
+            "description": "Configuration management (YAML, .env, providers)",
+        },
+        {
+            "name": "system",
+            "description": "System operations, containers, updates, health",
+        },
         {"name": "wizard", "description": "Setup wizard and local AI model downloads"},
         {"name": "local-ai", "description": "Local AI server management"},
         {"name": "calls", "description": "Call history and analytics"},
@@ -180,6 +209,7 @@ if getattr(auth, "USING_PLACEHOLDER_SECRET", False):
         "JWT_SECRET is missing/placeholder; Admin UI is using an insecure secret. "
         "Set JWT_SECRET in .env for production (recommended: openssl rand -hex 32)."
     )
+
 
 # Configure CORS
 def _parse_cors_origins() -> list[str]:
@@ -208,22 +238,60 @@ app.add_middleware(
 # Public routes
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 
+# Public read-only routes (for dashboard without login)
+app.include_router(system.router, prefix="/api/system", tags=["system"])
+app.include_router(wizard.router, prefix="/api/wizard", tags=["wizard"])
+
 # Protected routes
-app.include_router(config.router, prefix="/api/config", tags=["config"], dependencies=[Depends(auth.get_current_user)])
-app.include_router(system.router, prefix="/api/system", tags=["system"], dependencies=[Depends(auth.get_current_user)])
-app.include_router(wizard.router, prefix="/api/wizard", tags=["wizard"], dependencies=[Depends(auth.get_current_user)])
-app.include_router(logs.router, prefix="/api/logs", tags=["logs"], dependencies=[Depends(auth.get_current_user)])
-app.include_router(local_ai.router, prefix="/api/local-ai", tags=["local-ai"], dependencies=[Depends(auth.get_current_user)])
+app.include_router(
+    config.router,
+    prefix="/api/config",
+    tags=["config"],
+    dependencies=[Depends(auth.get_current_user)],
+)
+app.include_router(
+    logs.router,
+    prefix="/api/logs",
+    tags=["logs"],
+    dependencies=[Depends(auth.get_current_user)],
+)
+app.include_router(
+    local_ai.router,
+    prefix="/api/local-ai",
+    tags=["local-ai"],
+    dependencies=[Depends(auth.get_current_user)],
+)
 app.include_router(mcp.router, dependencies=[Depends(auth.get_current_user)])
-app.include_router(ollama.router, tags=["ollama"], dependencies=[Depends(auth.get_current_user)])
-app.include_router(calls.router, prefix="/api", tags=["calls"], dependencies=[Depends(auth.get_current_user)])
-app.include_router(outbound.router, prefix="/api", tags=["outbound"], dependencies=[Depends(auth.get_current_user)])
-app.include_router(tools.router, prefix="/api/tools", tags=["tools"], dependencies=[Depends(auth.get_current_user)])
-app.include_router(docs.router, tags=["documentation"], dependencies=[Depends(auth.get_current_user)])
+app.include_router(
+    ollama.router, tags=["ollama"], dependencies=[Depends(auth.get_current_user)]
+)
+app.include_router(
+    calls.router,
+    prefix="/api",
+    tags=["calls"],
+    dependencies=[Depends(auth.get_current_user)],
+)
+app.include_router(
+    outbound.router,
+    prefix="/api",
+    tags=["outbound"],
+    dependencies=[Depends(auth.get_current_user)],
+)
+app.include_router(
+    tools.router,
+    prefix="/api/tools",
+    tags=["tools"],
+    dependencies=[Depends(auth.get_current_user)],
+)
+app.include_router(
+    docs.router, tags=["documentation"], dependencies=[Depends(auth.get_current_user)]
+)
+
 
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
+
 
 # Serve static files (Frontend)
 from fastapi.staticfiles import StaticFiles
@@ -234,21 +302,29 @@ import os
 static_dir = os.path.join(os.path.dirname(__file__), "static")
 if os.path.exists(static_dir):
     static_files = StaticFiles(directory=static_dir, html=False)
-    app.mount("/assets", StaticFiles(directory=os.path.join(static_dir, "assets")), name="assets")
+    app.mount(
+        "/assets",
+        StaticFiles(directory=os.path.join(static_dir, "assets")),
+        name="assets",
+    )
     index_file = os.path.join(static_dir, "index.html")
-    
+
     @app.get("/{full_path:path}")
     async def serve_react_app(full_path: str):
         # API routes are already handled above
-        if full_path.startswith("api/") or full_path in ("docs", "redoc", "openapi.json"):
+        if full_path.startswith("api/") or full_path in (
+            "docs",
+            "redoc",
+            "openapi.json",
+        ):
             raise HTTPException(status_code=404, detail="Not found")
-            
+
         # Use Starlette's safe static path lookup to prevent traversal.
         if full_path:
             resolved_path, stat_result = static_files.lookup_path(full_path.lstrip("/"))
             if stat_result and os.path.isfile(resolved_path):
                 return FileResponse(resolved_path)
-            
+
         # Serve index.html for all other routes (SPA)
         response = FileResponse(index_file)
         response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
@@ -256,6 +332,8 @@ if os.path.exists(static_dir):
         response.headers["Expires"] = "0"
         return response
 
+
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
