@@ -125,6 +125,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")
         role: str = payload.get("role", "user")
+        print(f"DEBUG get_current_user: username={username}, role={role}")
         if username is None:
             raise credentials_exception
     except JWTError:
@@ -143,62 +144,14 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     )
 
 
-# --- Routes ---
-
-
-@router.post("/login", response_model=Token)
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
-    user = get_user(form_data.username)
-    if not user or not verify_password(form_data.password, user.hashed_password):
+def get_admin_user(current_user: User = Depends(get_current_user)):
+    print(
+        f"DEBUG get_admin_user: user={current_user.username}, role={current_user.role}"
+    )
+    if current_user.role != "admin":
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
+            status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required"
         )
-
-    # Check if user needs to change password
-    users = load_users()
-    user_dict = users.get(user.username, {})
-    must_change = user_dict.get("must_change_password", False)
-    role = user_dict.get("role", "user")
-
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user.username, "role": role}, expires_delta=access_token_expires
-    )
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "must_change_password": must_change,
-        "role": role,
-    }
-
-
-@router.post("/change-password")
-async def change_password(
-    request: ChangePasswordRequest, current_user: User = Depends(get_current_user)
-):
-    users = load_users()
-    user_dict = users.get(current_user.username)
-
-    if not user_dict:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    if not verify_password(request.old_password, user_dict["hashed_password"]):
-        raise HTTPException(status_code=400, detail="Incorrect old password")
-
-    # Update password and clear must_change_password flag
-    users[current_user.username]["hashed_password"] = get_password_hash(
-        request.new_password
-    )
-    users[current_user.username]["must_change_password"] = False
-    save_users(users)
-
-    return {"status": "success", "message": "Password updated successfully"}
-
-
-@router.get("/me", response_model=User)
-async def read_users_me(current_user: User = Depends(get_current_user)):
     return current_user
 
 
