@@ -114,7 +114,15 @@ def load_users():
         return default_users
 
     with open(USERS_PATH, "r") as f:
-        return json.load(f)
+        users = json.load(f)
+
+    # Ensure admin user has admin role
+    if "admin" in users and users["admin"].get("role") != UserRole.ADMIN:
+        users["admin"]["role"] = UserRole.ADMIN
+        with open(USERS_PATH, "w") as f:
+            json.dump(users, f, indent=2)
+
+    return users
 
 
 def save_users(users):
@@ -233,7 +241,11 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": user.username, "role": user.role, "must_change_password": must_change},
+        data={
+            "sub": user.username,
+            "role": user.role,
+            "must_change_password": must_change,
+        },
         expires_delta=access_token_expires,
     )
     return {
@@ -353,7 +365,9 @@ async def get_auth_warning():
     """Returns security warnings that should be surfaced in the admin UI."""
     return {
         "placeholder_secret": USING_PLACEHOLDER_SECRET,
-        "message": "JWT secret is using a default dev value. Set JWT_SECRET in .env for production." if USING_PLACEHOLDER_SECRET else None,
+        "message": "JWT secret is using a default dev value. Set JWT_SECRET in .env for production."
+        if USING_PLACEHOLDER_SECRET
+        else None,
     }
 
 
