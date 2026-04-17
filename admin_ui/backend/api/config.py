@@ -760,7 +760,6 @@ async def get_providers_summary():
     """
     config = _read_merged_config_dict()
 
-    providers = config.get("providers", {})
     contexts = config.get("contexts", {})
     default_provider = config.get("default_provider")
     default_context = config.get("default_context")
@@ -773,47 +772,31 @@ async def get_providers_summary():
         "available_providers": [],
     }
 
-    # Get full-agent providers
-    full_agent_providers = [
-        "openai_realtime",
-        "google_live",
-        "deepgram",
-        "elevenlabs_agent",
-    ]
+    # Find all unique providers from contexts
+    # Group contexts by their provider
+    provider_contexts: dict = {}
+    for ctx_name, ctx_config in contexts.items():
+        if not isinstance(ctx_config, dict):
+            continue
+        ctx_provider = ctx_config.get("provider", "")
+        if ctx_provider:
+            if ctx_provider not in provider_contexts:
+                provider_contexts[ctx_provider] = []
+            provider_contexts[ctx_provider].append(
+                {
+                    "name": ctx_name,
+                    "description": ctx_config.get("description", ""),
+                }
+            )
 
-    # Get provider names from config
-    provider_names = []
-    if isinstance(providers, dict):
-        provider_names = list(providers.keys())
-
-    for provider_name in provider_names:
-        provider_config = providers.get(provider_name, {})
-
-        # Check if it's a full-agent or pipeline provider
-        provider_type = provider_config.get("type", "")
-        is_full_agent = (
-            provider_type in full_agent_providers
-            or provider_name in full_agent_providers
-        )
-
-        # Get associated contexts
-        associated_contexts = []
-        for ctx_name, ctx_config in contexts.items():
-            ctx_provider = ctx_config.get("provider")
-            if ctx_provider == provider_name:
-                associated_contexts.append(
-                    {
-                        "name": ctx_name,
-                        "description": ctx_config.get("description", ""),
-                    }
-                )
-
+    # Add providers to result
+    for provider_name, ctx_list in provider_contexts.items():
         result["available_providers"].append(
             {
                 "name": provider_name,
-                "type": provider_type,
-                "is_full_agent": is_full_agent,
-                "contexts": associated_contexts,
+                "type": "full_agent",
+                "is_full_agent": True,
+                "contexts": ctx_list,
             }
         )
 
@@ -825,24 +808,29 @@ async def switch_provider(request: ProviderSwitchRequest):
     """
     Switch to a different provider and/or context.
     Updates the default_provider and default_context in config.
+    If only context is provided, auto-detects the provider from the context.
     """
     config = _read_merged_config_dict()
+    contexts = config.get("contexts", {})
 
-    # Validate provider exists
-    providers = config.get("providers", {})
-    if request.provider not in providers:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Provider '{request.provider}' not found in configuration",
-        )
-
-    # Validate context exists (if provided)
+    # If context provided, get provider from it
     if request.context:
-        contexts = config.get("contexts", {})
-        if request.context not in contexts:
+        ctx_config = contexts.get(request.context)
+        if not ctx_config:
             raise HTTPException(
                 status_code=400,
                 detail=f"Context '{request.context}' not found in configuration",
+            )
+        # Auto-detect provider from context
+        provider_from_context = ctx_config.get("provider", "")
+        if provider_from_context:
+            request.provider = provider_from_context
+    else:
+        # No context provided, just switch provider
+        if request.provider not in config.get("providers", {}):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Provider '{request.provider}' not found in configuration",
             )
 
     # Update config
@@ -854,17 +842,12 @@ async def switch_provider(request: ProviderSwitchRequest):
         except Exception:
             local_config = {}
 
-    # Update or add default_provider and default_context
-    if "default_provider" not in local_config:
-        local_config["default_provider"] = request.provider
-    else:
-        local_config["default_provider"] = request.provider
+    # Always set provider from context
+    local_config["default_provider"] = request.provider
 
+    # Set context if provided
     if request.context:
-        if "default_context" not in local_config:
-            local_config["default_context"] = request.context
-        else:
-            local_config["default_context"] = request.context
+        local_config["default_context"] = request.context
 
     # Write back to local config
     _write_local_config(
