@@ -492,7 +492,7 @@ async def get_call_transcript(record_id: str):
 # Call recording playback
 # ---------------------------------------------------------------------------
 
-_RECORDING_BASE = Path("/mnt/asterisk_recordings")
+_RECORDING_BASE = Path("/mnt/asterisk_recordings/ORIG")
 _MIN_VALID_WAV_SIZE = 44  # WAV header is 44 bytes; files <= header size have no audio
 
 
