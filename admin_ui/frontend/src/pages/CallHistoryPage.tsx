@@ -964,6 +964,8 @@ const CallHistoryPage = () => {
                                     Loading full call details…
                                 </div>
                             )}
+                            {!selectedCallLoading && (
+                            <>
                             {/* Overview */}
                             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                                 <div>
@@ -1127,6 +1129,8 @@ const CallHistoryPage = () => {
                                         {modalCall.error_message}
                                     </div>
                                 </div>
+                            )}
+                            </>
                             )}
                         </div>
                     </div>
