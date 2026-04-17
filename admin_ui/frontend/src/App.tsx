@@ -190,32 +190,34 @@ function App() {
                             <Suspense fallback={<PageLoader />}>
                                 <Routes>
                                     <Route path="/wizard" element={<Wizard />} />
-                                    <Route path="/" element={<Dashboard />} />
-                                    <Route path="/history" element={<CallHistoryPage />} />
-                                    <Route path="/scheduling" element={<CallSchedulingPage />} />
-                                    <Route path="/providers" element={<ProvidersPage />} />
-                                    <Route path="/pipelines" element={<PipelinesPage />} />
-                                    <Route path="/contexts" element={<ContextsPage />} />
-                                    <Route path="/profiles" element={<ProfilesPage />} />
-                                    <Route path="/tools" element={<ToolsPage />} />
-                                    <Route path="/mcp" element={<MCPPage />} />
-                                    <Route path="/users" element={<UserManagementPage />} />
-                                    <Route path="/vad" element={<VADPage />} />
-                                    <Route path="/streaming" element={<StreamingPage />} />
-                                    <Route path="/llm" element={<LLMPage />} />
-                                    <Route path="/transport" element={<TransportPage />} />
-                                    <Route path="/barge-in" element={<BargeInPage />} />
-                                    <Route path="/yaml" element={<RawYamlPage />} />
-                                    <Route path="/env" element={<EnvPage />} />
-                                    <Route path="/docker" element={<DockerPage />} />
-                                    <Route path="/asterisk" element={<AsteriskPage />} />
-                                    <Route path="/logs" element={<LogsPage />} />
-                                    <Route path="/terminal" element={<TerminalPage />} />
-                                    <Route path="/models" element={<ModelsPage />} />
-                                    <Route path="/updates" element={<UpdatesPage />} />
-                                    <Route path="/help" element={<HelpPage />} />
-                                    <Route path="/settings" element={<SettingsPage />} />
-                                    <Route path="*" element={<Navigate to="/" replace />} />
+                                    <Route element={<LayoutWrapper />}>
+                                        <Route path="/" element={<Dashboard />} />
+                                        <Route path="/history" element={<CallHistoryPage />} />
+                                        <Route path="/scheduling" element={<CallSchedulingPage />} />
+                                        <Route path="/providers" element={<ProvidersPage />} />
+                                        <Route path="/pipelines" element={<PipelinesPage />} />
+                                        <Route path="/contexts" element={<ContextsPage />} />
+                                        <Route path="/profiles" element={<ProfilesPage />} />
+                                        <Route path="/tools" element={<ToolsPage />} />
+                                        <Route path="/mcp" element={<MCPPage />} />
+                                        <Route path="/users" element={<UserManagementPage />} />
+                                        <Route path="/vad" element={<VADPage />} />
+                                        <Route path="/streaming" element={<StreamingPage />} />
+                                        <Route path="/llm" element={<LLMPage />} />
+                                        <Route path="/transport" element={<TransportPage />} />
+                                        <Route path="/barge-in" element={<BargeInPage />} />
+                                        <Route path="/yaml" element={<RawYamlPage />} />
+                                        <Route path="/env" element={<EnvPage />} />
+                                        <Route path="/docker" element={<DockerPage />} />
+                                        <Route path="/asterisk" element={<AsteriskPage />} />
+                                        <Route path="/logs" element={<LogsPage />} />
+                                        <Route path="/terminal" element={<TerminalPage />} />
+                                        <Route path="/models" element={<ModelsPage />} />
+                                        <Route path="/updates" element={<UpdatesPage />} />
+                                        <Route path="/help" element={<HelpPage />} />
+                                        <Route path="/settings" element={<SettingsPage />} />
+                                        <Route path="*" element={<Navigate to="/" replace />} />
+                                    </Route>
                                 </Routes>
                             </Suspense>
                         </SetupGuard>
