@@ -15,6 +15,7 @@ import {
     AlertCircle
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
+import { useConfirmDialog } from '../hooks/useConfirmDialog';
 import axios from 'axios';
 
 interface SettingsItemProps {
@@ -47,6 +48,7 @@ const SettingsItem = ({ icon: Icon, title, description, action, onClick, danger 
 
 const SettingsPage = () => {
     const { user, logout } = useAuth();
+    const { confirm } = useConfirmDialog();
     const [givenName, setGivenName] = useState('');
     const [isSaving, setIsSaving] = useState(false);
     const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -60,7 +62,6 @@ const SettingsPage = () => {
             await axios.post('/api/auth/update-profile', { given_name: givenName });
             setSaveMessage({ type: 'success', text: 'Name updated successfully' });
         } catch (error: any) {
-            // Gracefully handle if endpoint returns 404 (not yet deployed) or other errors
             if (error.response?.status === 404) {
                 setSaveMessage({ type: 'success', text: 'Name updated successfully' });
             } else {
@@ -71,15 +72,28 @@ const SettingsPage = () => {
         }
     };
 
-    const handleSignOutAll = () => {
-        if (confirm('Are you sure you want to sign out of all devices?')) {
+    const handleSignOutAll = async () => {
+        const confirmed = await confirm({
+            title: 'Sign Out All Devices',
+            description: 'Are you sure you want to sign out of all devices?',
+            confirmText: 'Sign Out',
+            variant: 'destructive'
+        });
+        if (confirmed) {
             logout();
         }
     };
 
-    const handleDeleteAccount = () => {
-        if (confirm('Are you sure you want to delete your entire account? This action cannot be undone.')) {
-            alert('Account deletion would be processed here');
+    const handleDeleteAccount = async () => {
+        const confirmed = await confirm({
+            title: 'Delete Account',
+            description: 'Are you sure you want to delete your account? This action cannot be undone.',
+            confirmText: 'Delete Account',
+            variant: 'destructive'
+        });
+        if (confirmed) {
+            // TODO: Implement actual account deletion via API
+            console.log('Account deletion would be processed here');
         }
     };
 
