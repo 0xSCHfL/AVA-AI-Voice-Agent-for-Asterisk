@@ -146,6 +146,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false }) => {
                 </SidebarGroup>
 
                 <SidebarGroup title="Support" isCollapsed={isCollapsed}>
+                    <SidebarItem to="/users" icon={Users} label="User Management" isCollapsed={isCollapsed} />
                     <SidebarItem to="/settings" icon={Settings} label="Settings" isCollapsed={isCollapsed} />
                     <SidebarItem to="/help" icon={HelpCircle} label="Help" isCollapsed={isCollapsed} />
                     <a
