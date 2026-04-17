@@ -87,10 +87,12 @@ const UserMenu = () => {
         }
         
         if (subItem.link) {
-            if (subItem.link.startsWith('/')) {
-                navigate(subItem.link);
-            } else if (subItem.external) {
+            if (subItem.external) {
                 window.open(subItem.link, '_blank');
+            } else if (subItem.link.startsWith('/')) {
+                navigate(subItem.link);
+            } else {
+                navigate(subItem.link);
             }
         }
     };
