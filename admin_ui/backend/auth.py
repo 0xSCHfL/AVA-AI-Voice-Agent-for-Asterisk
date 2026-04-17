@@ -30,34 +30,45 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 router = APIRouter()
 
+
 class Token(BaseModel):
     access_token: str
     token_type: str
     must_change_password: bool = False
 
+
 class TokenData(BaseModel):
     username: Optional[str] = None
+    role: Optional[str] = None
+
 
 class User(BaseModel):
     username: str
+    role: Optional[str] = "user"
     disabled: Optional[bool] = None
     must_change_password: Optional[bool] = False
+
 
 class UserInDB(User):
     hashed_password: str
     must_change_password: Optional[bool] = False
 
+
 class ChangePasswordRequest(BaseModel):
     old_password: str
     new_password: str
 
+
 # --- Helper Functions ---
+
 
 def get_password_hash(password):
     return pwd_context.hash(password)
 
+
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
+
 
 def load_users():
     if not os.path.exists(USERS_PATH):
@@ -67,21 +78,23 @@ def load_users():
                 "username": "admin",
                 "hashed_password": get_password_hash("admin"),
                 "disabled": False,
-                "must_change_password": True  # Force password change on first login
+                "must_change_password": True,  # Force password change on first login
             }
         }
         os.makedirs(os.path.dirname(USERS_PATH), exist_ok=True)
         with open(USERS_PATH, "w") as f:
             json.dump(default_users, f, indent=2)
         return default_users
-    
+
     with open(USERS_PATH, "r") as f:
         return json.load(f)
+
 
 def save_users(users):
     os.makedirs(os.path.dirname(USERS_PATH), exist_ok=True)
     with open(USERS_PATH, "w") as f:
         json.dump(users, f, indent=2)
+
 
 def get_user(username: str):
     users = load_users()
@@ -89,6 +102,7 @@ def get_user(username: str):
         user_dict = users[username]
         return UserInDB(**user_dict)
     return None
+
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
@@ -99,6 +113,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
+
 
 async def get_current_user(token: str = Depends(oauth2_scheme)):
     credentials_exception = HTTPException(
@@ -114,13 +129,15 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         token_data = TokenData(username=username)
     except JWTError:
         raise credentials_exception
-    
+
     user = get_user(token_data.username)
     if user is None:
         raise credentials_exception
     return user
 
+
 # --- Routes ---
+
 
 @router.post("/login", response_model=Token)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
@@ -131,39 +148,101 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+
     # Check if user needs to change password
     users = load_users()
     user_dict = users.get(user.username, {})
     must_change = user_dict.get("must_change_password", False)
-    
+
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": user.username}, expires_delta=access_token_expires
     )
-    return {"access_token": access_token, "token_type": "bearer", "must_change_password": must_change}
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "must_change_password": must_change,
+    }
+
 
 @router.post("/change-password")
 async def change_password(
-    request: ChangePasswordRequest,
-    current_user: User = Depends(get_current_user)
+    request: ChangePasswordRequest, current_user: User = Depends(get_current_user)
 ):
     users = load_users()
     user_dict = users.get(current_user.username)
-    
+
     if not user_dict:
         raise HTTPException(status_code=404, detail="User not found")
-        
+
     if not verify_password(request.old_password, user_dict["hashed_password"]):
         raise HTTPException(status_code=400, detail="Incorrect old password")
-        
+
     # Update password and clear must_change_password flag
-    users[current_user.username]["hashed_password"] = get_password_hash(request.new_password)
+    users[current_user.username]["hashed_password"] = get_password_hash(
+        request.new_password
+    )
     users[current_user.username]["must_change_password"] = False
     save_users(users)
-    
+
     return {"status": "success", "message": "Password updated successfully"}
+
 
 @router.get("/me", response_model=User)
 async def read_users_me(current_user: User = Depends(get_current_user)):
     return current_user
+
+
+# --- Admin User Management Endpoints ---
+
+
+def get_admin_user(current_user: User = Depends(get_current_user)):
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required"
+        )
+    return current_user
+
+
+@router.get("/users", dependencies=[Depends(get_admin_user)])
+async def list_users():
+    users = load_users()
+    return [
+        {
+            "username": u,
+            "role": users[u].get("role", "user"),
+            "disabled": users[u].get("disabled", False),
+        }
+        for u in users
+    ]
+
+
+@router.post("/users", dependencies=[Depends(get_admin_user)])
+async def create_user(username: str, password: str, role: str = "user"):
+    users = load_users()
+    if username in users:
+        raise HTTPException(status_code=400, detail="User already exists")
+    users[username] = {
+        "username": username,
+        "hashed_password": get_password_hash(password),
+        "role": role,
+        "disabled": False,
+        "must_change_password": False,
+        "created_at": datetime.utcnow().isoformat(),
+    }
+    save_users(users)
+    return {"status": "success", "message": f"User '{username}' created"}
+
+
+@router.delete("/users/{username}", dependencies=[Depends(get_admin_user)])
+async def delete_user(username: str):
+    users = load_users()
+    if username not in users:
+        raise HTTPException(status_code=404, detail="User not found")
+    if username == "admin":
+        raise HTTPException(
+            status_code=400, detail="Cannot delete the primary admin account"
+        )
+    del users[username]
+    save_users(users)
+    return {"status": "success", "message": f"User '{username}' deleted"}
