@@ -234,6 +234,19 @@ async def create_user(username: str, password: str, role: str = "user"):
     return {"status": "success", "message": f"User '{username}' created"}
 
 
+@router.put("/users/{username}", dependencies=[Depends(get_admin_user)])
+async def update_user(username: str, role: str = None, disabled: bool = None):
+    users = load_users()
+    if username not in users:
+        raise HTTPException(status_code=404, detail="User not found")
+    if role is not None:
+        users[username]["role"] = role
+    if disabled is not None:
+        users[username]["disabled"] = disabled
+    save_users(users)
+    return {"status": "success", "message": f"User '{username}' updated"}
+
+
 @router.delete("/users/{username}", dependencies=[Depends(get_admin_user)])
 async def delete_user(username: str):
     users = load_users()
@@ -246,3 +259,23 @@ async def delete_user(username: str):
     del users[username]
     save_users(users)
     return {"status": "success", "message": f"User '{username}' deleted"}
+
+
+@router.post("/register", dependencies=[Depends(get_admin_user)])
+async def register_user(
+    username: str, password: str, email: str = None, role: str = "user"
+):
+    users = load_users()
+    if username in users:
+        raise HTTPException(status_code=400, detail="User already exists")
+    users[username] = {
+        "username": username,
+        "email": email,
+        "hashed_password": get_password_hash(password),
+        "role": role,
+        "disabled": False,
+        "must_change_password": False,
+        "created_at": datetime.utcnow().isoformat(),
+    }
+    save_users(users)
+    return {"status": "success", "message": f"User '{username}' created"}
