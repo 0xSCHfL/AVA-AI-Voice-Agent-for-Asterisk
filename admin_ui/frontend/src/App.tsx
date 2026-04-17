@@ -74,33 +74,22 @@ const AuthGate = ({ children }: { children: React.ReactNode }) => {
     const location = useLocation();
 
     useEffect(() => {
-        // Don't redirect on login or password change pages
-        if (location.pathname === '/login' || location.pathname === '/force-password-change') {
-            return;
-        }
-        
         if (!loading && !user) {
             navigate('/login', { replace: true });
             return;
         }
-        
-        // Check if user needs to change password
         if (!loading && user) {
             const token = localStorage.getItem('token');
             if (token) {
-                try {
-                    const payload = JSON.parse(atob(token.split('.')[1]));
-                    if (payload.must_change_password === true) {
-                        navigate('/force-password-change', { replace: true });
-                    }
-                } catch (e) {
-                    // Invalid token, ignore
+                const payload = decodeJWTPayload(token);
+                if (payload.must_change_password && location.pathname !== '/force-password-change') {
+                    navigate('/force-password-change', { replace: true });
                 }
             }
         }
-    }, [loading, user, navigate, location.pathname]);
+    }, [loading, user, location.pathname, navigate]);
 
-    if (loading) {
+    if (loading || !user) {
         return (
             <div className="flex items-center justify-center min-h-screen">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -198,43 +187,39 @@ function App() {
                     <SidebarProvider>
                         <Toaster position="top-right" richColors />
                         <SetupGuard>
-                            <AuthGate>
-                                <Suspense fallback={<PageLoader />}>
+                            <Suspense fallback={<PageLoader />}>
                                 <Routes>
-                                    <Route path="/login" element={<LoginPage />} />
-                                    <Route path="/force-password-change" element={<ForcePasswordChangePage />} />
                                     <Route path="/wizard" element={<Wizard />} />
-                                        <Route element={<LayoutWrapper />}>
-                                            <Route path="/" element={<Dashboard />} />
-                                            <Route path="/history" element={<CallHistoryPage />} />
-                                            <Route path="/scheduling" element={<CallSchedulingPage />} />
-                                            <Route path="/providers" element={<ProvidersPage />} />
-                                            <Route path="/pipelines" element={<PipelinesPage />} />
-                                            <Route path="/contexts" element={<ContextsPage />} />
-                                            <Route path="/profiles" element={<ProfilesPage />} />
-                                            <Route path="/tools" element={<ToolsPage />} />
-                                            <Route path="/mcp" element={<MCPPage />} />
-                                            <Route path="/users" element={<UserManagementPage />} />
-                                            <Route path="/vad" element={<VADPage />} />
-                                            <Route path="/streaming" element={<StreamingPage />} />
-                                            <Route path="/llm" element={<LLMPage />} />
-                                            <Route path="/transport" element={<TransportPage />} />
-                                            <Route path="/barge-in" element={<BargeInPage />} />
-                                            <Route path="/yaml" element={<RawYamlPage />} />
-                                            <Route path="/env" element={<EnvPage />} />
-                                            <Route path="/docker" element={<DockerPage />} />
-                                            <Route path="/asterisk" element={<AsteriskPage />} />
-                                            <Route path="/logs" element={<LogsPage />} />
-                                            <Route path="/terminal" element={<TerminalPage />} />
-                                            <Route path="/models" element={<ModelsPage />} />
-                                            <Route path="/updates" element={<UpdatesPage />} />
-                                            <Route path="/help" element={<HelpPage />} />
-                                            <Route path="/settings" element={<SettingsPage />} />
-                                            <Route path="*" element={<Navigate to="/" replace />} />
-                                        </Route>
-                                    </Routes>
-                                </Suspense>
-                            </AuthGate>
+                                    <Route element={<LayoutWrapper />}>
+                                        <Route path="/" element={<Dashboard />} />
+                                        <Route path="/history" element={<CallHistoryPage />} />
+                                        <Route path="/scheduling" element={<CallSchedulingPage />} />
+                                        <Route path="/providers" element={<ProvidersPage />} />
+                                        <Route path="/pipelines" element={<PipelinesPage />} />
+                                        <Route path="/contexts" element={<ContextsPage />} />
+                                        <Route path="/profiles" element={<ProfilesPage />} />
+                                        <Route path="/tools" element={<ToolsPage />} />
+                                        <Route path="/mcp" element={<MCPPage />} />
+                                        <Route path="/users" element={<UserManagementPage />} />
+                                        <Route path="/vad" element={<VADPage />} />
+                                        <Route path="/streaming" element={<StreamingPage />} />
+                                        <Route path="/llm" element={<LLMPage />} />
+                                        <Route path="/transport" element={<TransportPage />} />
+                                        <Route path="/barge-in" element={<BargeInPage />} />
+                                        <Route path="/yaml" element={<RawYamlPage />} />
+                                        <Route path="/env" element={<EnvPage />} />
+                                        <Route path="/docker" element={<DockerPage />} />
+                                        <Route path="/asterisk" element={<AsteriskPage />} />
+                                        <Route path="/logs" element={<LogsPage />} />
+                                        <Route path="/terminal" element={<TerminalPage />} />
+                                        <Route path="/models" element={<ModelsPage />} />
+                                        <Route path="/updates" element={<UpdatesPage />} />
+                                        <Route path="/help" element={<HelpPage />} />
+                                        <Route path="/settings" element={<SettingsPage />} />
+                                        <Route path="*" element={<Navigate to="/" replace />} />
+                                    </Route>
+                                </Routes>
+                            </Suspense>
                         </SetupGuard>
                     </SidebarProvider>
                 </ConfirmDialogProvider>
