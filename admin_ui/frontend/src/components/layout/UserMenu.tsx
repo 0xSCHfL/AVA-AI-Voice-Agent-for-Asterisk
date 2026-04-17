@@ -32,6 +32,7 @@ const menuGroups: { items: MenuItem[] }[] = [
             ]},
             { label: 'Docs and resources', icon: HelpCircle, subItems: [
                 { label: 'Documentation', link: '/help' },
+                { label: 'API Docs', link: '/docs', external: true },
                 { label: 'Changelog', link: 'https://github.com/hkjarral/AVA-AI-Voice-Agent-for-Asterisk/releases', external: true },
                 { label: 'Help center', link: '/help' },
             ]},
