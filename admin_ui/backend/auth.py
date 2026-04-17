@@ -88,9 +88,18 @@ def load_users():
     with open(USERS_PATH, "r") as f:
         users = json.load(f)
 
-    # Ensure admin has role
-    if "admin" in users and not users["admin"].get("role"):
-        users["admin"]["role"] = "admin"
+    modified = False
+    for username, user_data in users.items():
+        if not user_data.get("role"):
+            user_data["role"] = "user"
+            modified = True
+            import logging
+
+            logging.getLogger(__name__).info(
+                f"Migrating user '{username}' to include role='user'"
+            )
+
+    if modified:
         save_users(users)
 
     return users
@@ -149,7 +158,16 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
 
 
 def get_admin_user(current_user: User = Depends(get_current_user)):
+    import logging
+
+    logger = logging.getLogger(__name__)
+    logger.debug(
+        f"get_admin_user: username={current_user.username}, role={current_user.role}"
+    )
     if current_user.role != "admin":
+        logger.warning(
+            f"Admin access denied for user={current_user.username}, role={current_user.role}"
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required"
         )
@@ -161,6 +179,10 @@ def get_admin_user(current_user: User = Depends(get_current_user)):
 
 @router.post("/login", response_model=Token)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
+    import logging
+
+    logger = logging.getLogger(__name__)
+
     user = get_user(form_data.username)
     if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
@@ -169,11 +191,12 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # Check if user needs to change password
     users = load_users()
     user_dict = users.get(user.username, {})
     must_change = user_dict.get("must_change_password", False)
     role = user_dict.get("role", "user")
+
+    logger.info(f"Login successful: username={form_data.username}, role={role}")
 
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
@@ -213,6 +236,28 @@ async def change_password(
 @router.get("/me", response_model=User)
 async def read_users_me(current_user: User = Depends(get_current_user)):
     return current_user
+
+
+# --- Public warning endpoint (no auth required) ---
+
+
+class WarningResponse(BaseModel):
+    placeholder_secret: bool
+    message: Optional[str] = None
+
+
+@router.get("/warning", response_model=WarningResponse)
+async def get_auth_warning():
+    """
+    Check if JWT secret is using a placeholder value.
+    Called by Dashboard to show a warning banner.
+    """
+    return {
+        "placeholder_secret": USING_PLACEHOLDER_SECRET,
+        "message": "JWT secret is using a default value. Set JWT_SECRET in .env for production."
+        if USING_PLACEHOLDER_SECRET
+        else None,
+    }
 
 
 # --- Admin User Management ---
