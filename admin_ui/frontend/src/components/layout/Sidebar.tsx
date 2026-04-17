@@ -83,7 +83,7 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false }) => {
     return (
-        <aside className={`${isCollapsed ? 'w-16' : 'w-64'} border-r border-border bg-card/50 backdrop-blur flex flex-col h-full overflow-y-auto`}>
+        <aside className={`${isCollapsed ? 'w-16' : 'w-64'} border-r border-border bg-card/50 backdrop-blur flex flex-col h-full overflow-y-auto scrollbar-hide`}>
             {!isCollapsed && (
                 <div className="p-6 border-b border-border/50">
                     <div className="flex items-center gap-3 font-bold text-xl tracking-tight">
