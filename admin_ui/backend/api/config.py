@@ -821,17 +821,16 @@ async def switch_provider(request: ProviderSwitchRequest):
                 status_code=400,
                 detail=f"Context '{request.context}' not found in configuration",
             )
-        # Auto-detect provider from context
+        # Auto-detect provider from context (works for full-agent providers)
         provider_from_context = ctx_config.get("provider", "")
         if provider_from_context:
             request.provider = provider_from_context
+        else:
+            # No provider in context, use pipeline - don't set default_provider
+            request.provider = ""
     else:
-        # No context provided, just switch provider
-        if request.provider not in config.get("providers", {}):
-            raise HTTPException(
-                status_code=400,
-                detail=f"Provider '{request.provider}' not found in configuration",
-            )
+        # No context provided - that's OK, can just switch provider
+        pass
 
     # Update config
     local_config = {}
@@ -842,8 +841,9 @@ async def switch_provider(request: ProviderSwitchRequest):
         except Exception:
             local_config = {}
 
-    # Always set provider from context
-    local_config["default_provider"] = request.provider
+    # Set provider if provided (full-agent providers don't need to be in providers: {} block)
+    if request.provider:
+        local_config["default_provider"] = request.provider
 
     # Set context if provided
     if request.context:
