@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronUp, ChevronRight, Settings, CreditCard, Users, FileText, BarChart3, HelpCircle, ExternalLink, LogOut, User as UserIcon, Sun, Moon, Monitor } from 'lucide-react';
+import { ChevronUp, ChevronRight, Settings, Users, FileText, HelpCircle, ExternalLink, LogOut, User as UserIcon, Sun, Moon, Monitor } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
 import { useTheme } from '../../hooks/useTheme';
 
@@ -20,8 +20,6 @@ const menuGroups: { items: MenuItem[] }[] = [
     },
     {
         items: [
-            { label: 'Usage Analytics', icon: BarChart3 },
-            { label: 'Billing', icon: CreditCard },
             { label: 'Team', icon: Users },
         ],
     },
@@ -165,41 +163,6 @@ const UserMenu = () => {
             {isOpen && (
                 <div className="absolute right-0 top-full mt-2 w-64">
                     <div className="bg-popover rounded-[14px] border border-border shadow-xl overflow-visible">
-                        <div className="p-3.5 border-b border-border">
-                            <div className="flex items-center justify-between mb-2">
-                                <div className="flex items-center gap-1.5 text-[13px] font-medium text-popover-foreground">
-                                    <div className="w-[15px] h-[15px] rounded-full border-2 border-popover-foreground border-r-0 border-transparent" />
-                                    Balance
-                                </div>
-                                <button className="text-[11px] font-medium text-primary-foreground bg-transparent border border-border rounded-[6px] px-2 py-1 cursor-pointer hover:bg-accent">
-                                    Upgrade
-                                </button>
-                            </div>
-                            <div className="flex justify-between text-[12px] mb-0.5">
-                                <span className="text-muted-foreground">Total</span>
-                                <span className="text-popover-foreground font-medium">Unlimited</span>
-                            </div>
-                            <div className="flex justify-between text-[12px]">
-                                <span className="text-muted-foreground">Remaining</span>
-                                <span className="text-popover-foreground font-medium">Unlimited</span>
-                            </div>
-                        </div>
-
-                        <div className="p-2.5 border-b border-border bg-muted">
-                            <div className="text-[10px] text-muted-foreground uppercase tracking-[0.06em] mb-1.5">
-                                Current workspace
-                            </div>
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <div className="text-[13px] font-semibold text-popover-foreground">Default</div>
-                                    <div className="text-[11px] text-muted-foreground">Admin</div>
-                                </div>
-                                <div className="w-7 h-7 bg-muted rounded-[8px] flex items-center justify-center text-[13px] text-muted-foreground">
-                                    ⇄
-                                </div>
-                            </div>
-                        </div>
-
                         {menuGroups.map((group, groupIndex) => (
                             <div
                                 key={groupIndex}
