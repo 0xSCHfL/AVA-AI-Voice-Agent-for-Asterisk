@@ -67,29 +67,22 @@ const PageLoader = () => (
     </div>
 );
 
-// Auth Gate — redirects to login if unauthenticated, or to force-password-change if required
+// Auth Gate — redirects to login if unauthenticated
 const AuthGate = ({ children }: { children: React.ReactNode }) => {
     const { user, loading } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
 
     useEffect(() => {
+        // Don't redirect on login page
+        if (location.pathname === '/login') return;
+        
         if (!loading && !user) {
             navigate('/login', { replace: true });
-            return;
         }
-        if (!loading && user) {
-            const token = localStorage.getItem('token');
-            if (token) {
-                const payload = decodeJWTPayload(token);
-                if (payload.must_change_password && location.pathname !== '/force-password-change') {
-                    navigate('/force-password-change', { replace: true });
-                }
-            }
-        }
-    }, [loading, user, location.pathname, navigate]);
+    }, [loading, user, navigate, location.pathname]);
 
-    if (loading || !user) {
+    if (loading) {
         return (
             <div className="flex items-center justify-center min-h-screen">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -187,10 +180,12 @@ function App() {
                     <SidebarProvider>
                         <Toaster position="top-right" richColors />
                         <SetupGuard>
-                            <Suspense fallback={<PageLoader />}>
-                                <Routes>
-                                    <Route path="/wizard" element={<Wizard />} />
-                                    <Route element={<LayoutWrapper />}>
+                            <AuthGate>
+                                <Suspense fallback={<PageLoader />}>
+                                    <Routes>
+                                        <Route path="/login" element={<LoginPage />} />
+                                        <Route path="/wizard" element={<Wizard />} />
+                                        <Route element={<LayoutWrapper />}>
                                         <Route path="/" element={<Dashboard />} />
                                         <Route path="/history" element={<CallHistoryPage />} />
                                         <Route path="/scheduling" element={<CallSchedulingPage />} />
@@ -220,6 +215,7 @@ function App() {
                                     </Route>
                                 </Routes>
                             </Suspense>
+                            </AuthGate>
                         </SetupGuard>
                     </SidebarProvider>
                 </ConfirmDialogProvider>
