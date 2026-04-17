@@ -302,3 +302,15 @@ data/*.db-shm
 # Secrets directory (Vertex AI credentials, API keys — never commit actual secrets)
 secrets/**
 !secrets/.gitkeep
+
+# Backup files
+.env.bak.*
+*.bak.*
+config/*.bak.*
+
+# Preflight status
+.preflight-ok
+
+# Runtime data files (except .gitkeep)
+data/*.json
+!data/.gitkeep
