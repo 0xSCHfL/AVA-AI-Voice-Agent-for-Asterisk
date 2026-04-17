@@ -314,3 +314,4 @@ config/*.bak.*
 # Runtime data files (except .gitkeep)
 data/*.json
 !data/.gitkeep
+CLAUDE.md
