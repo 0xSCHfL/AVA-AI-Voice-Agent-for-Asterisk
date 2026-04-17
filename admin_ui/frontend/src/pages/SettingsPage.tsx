@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useTranslation } from 'react-i18next';
 import { 
     User, 
     Lock, 
@@ -53,18 +52,11 @@ const SettingsItem = ({ icon: Icon, title, description, action, onClick, danger 
 );
 
 const SettingsPage = () => {
-    const { t, i18n } = useTranslation();
     const { user, logout } = useAuth();
     const { confirm } = useConfirmDialog();
     const [givenName, setGivenName] = useState('');
     const [isSaving, setIsSaving] = useState(false);
     const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-
-    const currentLang = languages.find(l => l.code === i18n.language) || languages[0];
-
-    const handleLanguageChange = (langCode: string) => {
-        i18n.changeLanguage(langCode);
-    };
 
     const handleUpdateName = async () => {
         if (!givenName.trim()) return;
@@ -73,12 +65,12 @@ const SettingsPage = () => {
 
         try {
             await axios.post('/api/auth/update-profile', { given_name: givenName });
-            setSaveMessage({ type: 'success', text: t('settings.profile.saveSuccess') });
+            setSaveMessage({ type: 'success', text: 'Name updated successfully' });
         } catch (error: any) {
             if (error.response?.status === 404) {
-                setSaveMessage({ type: 'success', text: t('settings.profile.saveSuccess') });
+                setSaveMessage({ type: 'success', text: 'Name updated successfully' });
             } else {
-                setSaveMessage({ type: 'error', text: error.response?.data?.detail || t('settings.profile.saveError') });
+                setSaveMessage({ type: 'error', text: error.response?.data?.detail || 'Failed to update name' });
             }
         } finally {
             setIsSaving(false);
@@ -87,9 +79,9 @@ const SettingsPage = () => {
 
     const handleSignOutAll = async () => {
         const confirmed = await confirm({
-            title: t('settings.signOutConfirm.title'),
-            description: t('settings.signOutConfirm.description'),
-            confirmText: t('settings.signOutConfirm.confirm'),
+            title: 'Sign Out All Devices',
+            description: 'Are you sure you want to sign out of all devices?',
+            confirmText: 'Sign Out',
             variant: 'destructive'
         });
         if (confirmed) {
@@ -99,9 +91,9 @@ const SettingsPage = () => {
 
     const handleDeleteAccount = async () => {
         const confirmed = await confirm({
-            title: t('settings.deleteConfirm.title'),
-            description: t('settings.deleteConfirm.description'),
-            confirmText: t('settings.deleteConfirm.confirm'),
+            title: 'Delete Account',
+            description: 'Are you sure you want to delete your account? This action cannot be undone.',
+            confirmText: 'Delete Account',
             variant: 'destructive'
         });
         if (confirmed) {
@@ -112,9 +104,9 @@ const SettingsPage = () => {
     return (
         <div className="max-w-4xl mx-auto space-y-8">
             <div>
-                <h1 className="text-3xl font-bold tracking-tight">{t('settings.title')}</h1>
+                <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
                 <p className="text-muted-foreground mt-1">
-                    {t('settings.subtitle')}
+                    Manage your profile and workspace memberships.
                 </p>
             </div>
 
@@ -122,7 +114,7 @@ const SettingsPage = () => {
             <div className="bg-card rounded-xl border border-border p-6">
                 <div className="flex items-center gap-3 mb-6">
                     <User className="w-5 h-5 text-muted-foreground" />
-                    <h2 className="text-lg font-semibold">{t('settings.profile.title')}</h2>
+                    <h2 className="text-lg font-semibold">Profile</h2>
                 </div>
 
                 <div className="space-y-4">
@@ -134,13 +126,13 @@ const SettingsPage = () => {
                     </div>
 
                     <div className="py-4 border-b border-border">
-                        <p className="font-medium mb-2">{t('settings.profile.nameLabel')}</p>
+                        <p className="font-medium mb-2">Given Name</p>
                         <div className="flex gap-3">
                             <input
                                 type="text"
                                 value={givenName}
                                 onChange={(e) => setGivenName(e.target.value)}
-                                placeholder={t('settings.profile.namePlaceholder')}
+                                placeholder="Enter your name"
                                 className="flex-1 px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
                             />
                             <button
@@ -149,7 +141,7 @@ const SettingsPage = () => {
                                 className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
                             >
                                 {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
-                                {t('settings.profile.saveButton')}
+                                Update Given Name
                             </button>
                         </div>
                         {saveMessage && (
@@ -164,51 +156,18 @@ const SettingsPage = () => {
                 </div>
             </div>
 
-            {/* Language Section */}
-            <div className="bg-card rounded-xl border border-border p-6">
-                <div className="flex items-center gap-3 mb-6">
-                    <Globe className="w-5 h-5 text-muted-foreground" />
-                    <h2 className="text-lg font-semibold">{t('settings.language.title')}</h2>
-                </div>
-
-                <div className="space-y-3">
-                    {languages.map((lang) => (
-                        <div
-                            key={lang.code}
-                            onClick={() => handleLanguageChange(lang.code)}
-                            className={`flex items-center justify-between p-4 rounded-lg border cursor-pointer transition-all ${
-                                currentLang.code === lang.code
-                                    ? 'border-primary bg-primary/5'
-                                    : 'border-border hover:border-primary/50'
-                            }`}
-                        >
-                            <div className="flex items-center gap-3">
-                                <span className="text-2xl">{lang.flag}</span>
-                                <div>
-                                    <p className="font-medium">{lang.name}</p>
-                                    <p className="text-sm text-muted-foreground">{lang.name}</p>
-                                </div>
-                            </div>
-                            {currentLang.code === lang.code && (
-                                <CheckCircle className="w-5 h-5 text-primary" />
-                            )}
-                        </div>
-                    ))}
-                </div>
-            </div>
-
             {/* Security Section */}
             <div className="bg-card rounded-xl border border-border p-6">
                 <div className="flex items-center gap-3 mb-6">
                     <Shield className="w-5 h-5 text-muted-foreground" />
-                    <h2 className="text-lg font-semibold">{t('settings.security.title')}</h2>
+                    <h2 className="text-lg font-semibold">Security</h2>
                 </div>
 
                 <div className="space-y-0">
                     <SettingsItem
                         icon={Lock}
-                        title={t('settings.security.changePassword')}
-                        description={t('settings.security.changePasswordDesc')}
+                        title="Change Password"
+                        description="Update your password"
                         action={
                             <button className="text-sm font-medium text-primary hover:underline">
                                 Update
@@ -226,6 +185,12 @@ const SettingsPage = () => {
                             </button>
                         }
                     />
+
+                    <SettingsItem
+                        icon={CreditCard}
+                        title="Usage & Credit Ceilings"
+                        description="See Details"
+                    />
                 </div>
             </div>
 
@@ -234,15 +199,15 @@ const SettingsPage = () => {
                 <div className="space-y-0">
                     <SettingsItem
                         icon={LogOut}
-                        title={t('settings.account.signOutAll')}
-                        description={t('settings.account.signOutAllDesc')}
+                        title="Sign out of all devices"
+                        description="Sign out of all devices and sessions. You will need to sign in again on all devices."
                         onClick={handleSignOutAll}
                     />
 
                     <SettingsItem
                         icon={Trash2}
-                        title={t('settings.account.deleteAccount')}
-                        description={t('settings.account.deleteAccountDesc')}
+                        title="Delete Entire Account"
+                        description="Permanently delete your entire account across all workspaces. You will no longer be able to create an account with this email."
                         onClick={handleDeleteAccount}
                         danger
                     />
