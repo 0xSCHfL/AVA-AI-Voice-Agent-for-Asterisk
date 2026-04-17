@@ -124,15 +124,18 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")
+        role: str = payload.get("role", "user")
         if username is None:
             raise credentials_exception
-        token_data = TokenData(username=username)
     except JWTError:
         raise credentials_exception
 
-    user = get_user(token_data.username)
+    user = get_user(username)
     if user is None:
         raise credentials_exception
+
+    # Include role from token
+    user.role = role
     return user
 
 
@@ -153,15 +156,17 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     users = load_users()
     user_dict = users.get(user.username, {})
     must_change = user_dict.get("must_change_password", False)
+    role = user_dict.get("role", "user")
 
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": user.username}, expires_delta=access_token_expires
+        data={"sub": user.username, "role": role}, expires_delta=access_token_expires
     )
     return {
         "access_token": access_token,
         "token_type": "bearer",
         "must_change_password": must_change,
+        "role": role,
     }
 
 
