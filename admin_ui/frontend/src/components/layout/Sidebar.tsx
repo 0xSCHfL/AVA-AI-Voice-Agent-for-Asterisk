@@ -31,6 +31,7 @@ import {
     Users,
     Settings,
 } from 'lucide-react';
+import { useAuth } from '../../auth/AuthContext';
 
 interface SidebarItemProps {
     to: string;
@@ -82,6 +83,9 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false }) => {
+    const { user } = useAuth();
+    const isAdmin = user?.role === 'admin';
+
     return (
         <aside className={`${isCollapsed ? 'w-16' : 'w-64'} border-r border-border bg-card/50 backdrop-blur flex flex-col h-full overflow-y-auto scrollbar-hide`}>
             {!isCollapsed && (
@@ -146,7 +150,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false }) => {
                 </SidebarGroup>
 
                 <SidebarGroup title="Support" isCollapsed={isCollapsed}>
-                    <SidebarItem to="/users" icon={Users} label="User Management" isCollapsed={isCollapsed} />
+                    {isAdmin && (
+                        <SidebarItem to="/users" icon={Users} label="User Management" isCollapsed={isCollapsed} />
+                    )}
                     <SidebarItem to="/settings" icon={Settings} label="Settings" isCollapsed={isCollapsed} />
                     <SidebarItem to="/help" icon={HelpCircle} label="Help" isCollapsed={isCollapsed} />
                     <a

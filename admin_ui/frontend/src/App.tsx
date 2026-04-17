@@ -93,6 +93,20 @@ const AuthGate = ({ children }: { children: React.ReactNode }) => {
     return <>{children}</>;
 };
 
+// Admin Gate — redirects to home if not admin
+const AdminGate = ({ children }: { children: React.ReactNode }) => {
+    const { user } = useAuth();
+    const navigate = useNavigate();
+    const location = useLocation();
+
+    if (user && user.role !== 'admin') {
+        navigate('/', { replace: true });
+        return null;
+    }
+
+    return <>{children}</>;
+};
+
 // Auth/Setup Guard
 const SetupGuard = ({ children }: { children: React.ReactNode }) => {
     const [loading, setLoading] = useState(true);
@@ -195,7 +209,7 @@ function App() {
                                         <Route path="/profiles" element={<ProfilesPage />} />
                                         <Route path="/tools" element={<ToolsPage />} />
                                         <Route path="/mcp" element={<MCPPage />} />
-                                        <Route path="/users" element={<UserManagementPage />} />
+                                        <Route path="/users" element={<AdminGate><UserManagementPage /></AdminGate>} />
                                         <Route path="/vad" element={<VADPage />} />
                                         <Route path="/streaming" element={<StreamingPage />} />
                                         <Route path="/llm" element={<LLMPage />} />
