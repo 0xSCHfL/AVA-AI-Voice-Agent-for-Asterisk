@@ -35,6 +35,7 @@ class Token(BaseModel):
     access_token: str
     token_type: str
     must_change_password: bool = False
+    role: Optional[str] = "user"
 
 
 class TokenData(BaseModel):
