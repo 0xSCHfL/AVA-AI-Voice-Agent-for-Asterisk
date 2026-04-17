@@ -922,7 +922,8 @@ const CallHistoryPage = () => {
                                             </span>
                                             <button
                                                 onClick={() => {
-                                                    const url = `${window.location.origin}/api/calls/${selectedCall?.id || selectedCallSummary?.id}/recording.wav`;
+                                                    const recordId = selectedCall?.id || selectedCallSummary?.id;
+                                                    const url = `${window.location.origin}/api/calls/${recordId}/recording.wav`;
                                                     navigator.clipboard.writeText(url);
                                                     toast.success('Recording URL copied to clipboard');
                                                 }}
