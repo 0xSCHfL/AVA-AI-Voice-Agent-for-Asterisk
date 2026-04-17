@@ -91,12 +91,15 @@ def load_users():
     modified = False
     for username, user_data in users.items():
         if not user_data.get("role"):
-            user_data["role"] = "user"
+            if username == "admin":
+                user_data["role"] = "admin"
+            else:
+                user_data["role"] = "user"
             modified = True
             import logging
 
             logging.getLogger(__name__).info(
-                f"Migrating user '{username}' to include role='user'"
+                f"Migrating user '{username}' to include role='{user_data['role']}'"
             )
 
     if modified:
