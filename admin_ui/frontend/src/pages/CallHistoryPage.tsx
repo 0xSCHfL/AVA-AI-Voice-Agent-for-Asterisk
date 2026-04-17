@@ -4,7 +4,7 @@ import {
     ChevronLeft, ChevronRight, RefreshCw, X, MessageSquare,
     Wrench, AlertCircle, CheckCircle, ArrowRightLeft, PhoneOff,
     BarChart3, Users, Timer, Activity, TrendingUp, Zap, PieChart,
-    Play, Pause, Volume2, FileAudio, Search
+    Play, Pause, Volume2, FileAudio, Search, Copy, ExternalLink
 } from 'lucide-react';
 import axios from 'axios';
 import { toast } from 'sonner';
@@ -920,6 +920,26 @@ const CallHistoryPage = () => {
                                             <span className="text-xs text-muted-foreground whitespace-nowrap">
                                                 ({formatFileSize(recordingInfo.file_size_bytes)})
                                             </span>
+                                            <button
+                                                onClick={() => {
+                                                    const url = `${window.location.origin}/api/calls/${selectedCall?.record_id}/recording.wav`;
+                                                    navigator.clipboard.writeText(url);
+                                                    toast.success('Recording URL copied to clipboard');
+                                                }}
+                                                className="ml-1 text-muted-foreground hover:text-foreground"
+                                                title="Copy link"
+                                            >
+                                                <Copy className="w-3.5 h-3.5" />
+                                            </button>
+                                            <a
+                                                href={`/api/calls/${selectedCall?.record_id}/recording.wav`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-muted-foreground hover:text-foreground"
+                                                title="Open in new tab"
+                                            >
+                                                <ExternalLink className="w-3.5 h-3.5" />
+                                            </a>
                                         </div>
                                     </div>
                                 </div>
