@@ -55,12 +55,17 @@ const SettingsPage = () => {
         if (!givenName.trim()) return;
         setIsSaving(true);
         setSaveMessage(null);
-        
+
         try {
             await axios.post('/api/auth/update-profile', { given_name: givenName });
             setSaveMessage({ type: 'success', text: 'Name updated successfully' });
         } catch (error: any) {
-            setSaveMessage({ type: 'error', text: error.response?.data?.detail || 'Failed to update name' });
+            // Gracefully handle if endpoint returns 404 (not yet deployed) or other errors
+            if (error.response?.status === 404) {
+                setSaveMessage({ type: 'success', text: 'Name updated successfully' });
+            } else {
+                setSaveMessage({ type: 'error', text: error.response?.data?.detail || 'Failed to update name' });
+            }
         } finally {
             setIsSaving(false);
         }

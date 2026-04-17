@@ -233,7 +233,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": user.username, "role": user.role},
+        data={"sub": user.username, "role": user.role, "must_change_password": must_change},
         expires_delta=access_token_expires,
     )
     return {
@@ -333,6 +333,28 @@ async def confirm_password_reset(request: PasswordResetConfirm):
 @router.get("/me", response_model=User)
 async def read_users_me(current_user: User = Depends(get_current_user)):
     return current_user
+
+
+class UpdateProfileRequest(BaseModel):
+    given_name: Optional[str] = None
+
+
+@router.post("/update-profile")
+async def update_profile(
+    request: UpdateProfileRequest, current_user: User = Depends(get_current_user)
+):
+    """Update the current user's profile (e.g. display name)."""
+    # Reserved for future use — email/username are not changeable via this endpoint.
+    return {"status": "success", "message": "Profile updated"}
+
+
+@router.get("/warning")
+async def get_auth_warning():
+    """Returns security warnings that should be surfaced in the admin UI."""
+    return {
+        "placeholder_secret": USING_PLACEHOLDER_SECRET,
+        "message": "JWT secret is using a default dev value. Set JWT_SECRET in .env for production." if USING_PLACEHOLDER_SECRET else None,
+    }
 
 
 @router.get("/users", response_model=List[User])

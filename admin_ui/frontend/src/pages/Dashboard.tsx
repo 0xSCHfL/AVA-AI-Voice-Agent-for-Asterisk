@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Activity, Cpu, HardDrive, RefreshCw, FolderCheck, Wrench, Globe, Tag, Box, CheckCircle2, XCircle, Phone, type LucideIcon } from 'lucide-react';
+import { Activity, Cpu, HardDrive, RefreshCw, FolderCheck, Wrench, Globe, Tag, Box, CheckCircle2, XCircle, Phone, AlertTriangle, type LucideIcon } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { toast } from 'sonner';
@@ -91,6 +91,7 @@ const Dashboard = () => {
     const [platformData, setPlatformData] = useState<PlatformResponse | null>(null);
     const [platformLoadFailed, setPlatformLoadFailed] = useState(false);
     const [ariConnected, setAriConnected] = useState<boolean | null>(null);
+    const [authWarning, setAuthWarning] = useState<string | null>(null);
     const navigate = useNavigate();
 
     const fetchData = async () => {
@@ -103,9 +104,10 @@ const Dashboard = () => {
             axios.get('/api/system/directories'),
             axios.get('/api/system/platform'),
             axios.get('/api/system/asterisk-status'),
+            axios.get('/api/auth/warning'),
         ]);
 
-        const [containersRes, metricsRes, dirHealthRes, platformRes, asteriskRes] = results;
+        const [containersRes, metricsRes, dirHealthRes, platformRes, asteriskRes, authWarningRes] = results;
 
         if (containersRes.status === 'fulfilled') {
             setContainers(containersRes.value.data);
@@ -142,6 +144,10 @@ const Dashboard = () => {
             setAriConnected(asteriskRes.value.data?.live?.ari_reachable ?? false);
         } else {
             setAriConnected(null);
+        }
+
+        if (authWarningRes.status === 'fulfilled' && authWarningRes.value.data?.placeholder_secret) {
+            setAuthWarning(authWarningRes.value.data.message || 'JWT secret is using a default value. Set JWT_SECRET in .env for production.');
         }
 
         setLoading(false);
@@ -223,6 +229,16 @@ const Dashboard = () => {
                     <RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
                 </button>
             </div>
+
+            {authWarning && (
+                <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-4 flex items-start gap-3">
+                    <AlertTriangle className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                        <div className="text-sm font-semibold text-yellow-500">Security Warning</div>
+                        <div className="mt-1 text-sm text-muted-foreground">{authWarning}</div>
+                    </div>
+                </div>
+            )}
 
             {(containersError || metricsError) && (
                 <div className="rounded-lg border border-destructive/20 bg-destructive/10 p-4">

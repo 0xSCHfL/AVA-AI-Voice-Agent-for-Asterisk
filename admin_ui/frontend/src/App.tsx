@@ -2,8 +2,17 @@ import React, { useState, useEffect, createContext, useContext, lazy, Suspense }
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { ConfirmDialogProvider } from './hooks/useConfirmDialog';
-import { AuthProvider, RequireAuth } from './auth/AuthContext';
+import { AuthProvider, RequireAuth, useAuth } from './auth/AuthContext';
 import { SidebarProvider, useSidebar } from './hooks/useSidebar';
+
+function decodeJWTPayload(token: string): Record<string, any> {
+    try {
+        const base64 = token.replace(/-/g, '+').replace(/_/g, '/').split('.')[1];
+        return JSON.parse(atob(base64));
+    } catch {
+        return {};
+    }
+}
 import AppShell from './components/layout/AppShell';
 import Dashboard from './pages/Dashboard';
 import CallHistoryPage from './pages/CallHistoryPage';
@@ -38,6 +47,10 @@ import SettingsPage from './pages/SettingsPage';
 // User Management
 import UserManagementPage from './pages/UserManagementPage';
 
+// Auth
+import LoginPage from './pages/LoginPage';
+import ForcePasswordChangePage from './pages/ForcePasswordChangePage';
+
 // Lazy-loaded heavy pages (code-splitting for better initial load)
 const Wizard = lazy(() => import('./pages/Wizard'));
 const RawYamlPage = lazy(() => import('./pages/Advanced/RawYamlPage'));
@@ -54,10 +67,44 @@ const PageLoader = () => (
     </div>
 );
 
+// Auth Gate — redirects to login if unauthenticated, or to force-password-change if required
+const AuthGate = ({ children }: { children: React.ReactNode }) => {
+    const { user, loading } = useAuth();
+    const navigate = useNavigate();
+    const location = useLocation();
+
+    useEffect(() => {
+        if (!loading && !user) {
+            navigate('/login', { replace: true });
+            return;
+        }
+        if (!loading && user) {
+            const token = localStorage.getItem('token');
+            if (token) {
+                const payload = decodeJWTPayload(token);
+                if (payload.must_change_password && location.pathname !== '/force-password-change') {
+                    navigate('/force-password-change', { replace: true });
+                }
+            }
+        }
+    }, [loading, user, location.pathname, navigate]);
+
+    if (loading || !user) {
+        return (
+            <div className="flex items-center justify-center min-h-screen">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+        );
+    }
+
+    return <>{children}</>;
+};
+
 // Auth/Setup Guard
 const SetupGuard = ({ children }: { children: React.ReactNode }) => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const { user } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -142,41 +189,45 @@ function App() {
                         <SetupGuard>
                             <Suspense fallback={<PageLoader />}>
                                 <Routes>
+                                    <Route path="/login" element={<LoginPage />} />
+                                    <Route path="/force-password-change" element={<ForcePasswordChangePage />} />
                                     <Route path="/wizard" element={<Wizard />} />
 
-                                    <Route element={<LayoutWrapper />}>
-                                        <Route path="/" element={<Dashboard />} />
-                                        <Route path="/history" element={<CallHistoryPage />} />
-                                        <Route path="/scheduling" element={<CallSchedulingPage />} />
+                                    <Route element={<AuthGate />}>
+                                        <Route element={<LayoutWrapper />}>
+                                            <Route path="/" element={<Dashboard />} />
+                                            <Route path="/history" element={<CallHistoryPage />} />
+                                            <Route path="/scheduling" element={<CallSchedulingPage />} />
 
-                                        <Route path="/providers" element={<ProvidersPage />} />
-                                        <Route path="/pipelines" element={<PipelinesPage />} />
-                                        <Route path="/contexts" element={<ContextsPage />} />
-                                        <Route path="/profiles" element={<ProfilesPage />} />
-                                        <Route path="/tools" element={<ToolsPage />} />
-                                        <Route path="/mcp" element={<MCPPage />} />
-                                        <Route path="/users" element={<UserManagementPage />} />
+                                            <Route path="/providers" element={<ProvidersPage />} />
+                                            <Route path="/pipelines" element={<PipelinesPage />} />
+                                            <Route path="/contexts" element={<ContextsPage />} />
+                                            <Route path="/profiles" element={<ProfilesPage />} />
+                                            <Route path="/tools" element={<ToolsPage />} />
+                                            <Route path="/mcp" element={<MCPPage />} />
+                                            <Route path="/users" element={<UserManagementPage />} />
 
-                                        <Route path="/vad" element={<VADPage />} />
-                                        <Route path="/streaming" element={<StreamingPage />} />
-                                        <Route path="/llm" element={<LLMPage />} />
-                                        <Route path="/transport" element={<TransportPage />} />
-                                        <Route path="/barge-in" element={<BargeInPage />} />
-                                        <Route path="/yaml" element={<RawYamlPage />} />
+                                            <Route path="/vad" element={<VADPage />} />
+                                            <Route path="/streaming" element={<StreamingPage />} />
+                                            <Route path="/llm" element={<LLMPage />} />
+                                            <Route path="/transport" element={<TransportPage />} />
+                                            <Route path="/barge-in" element={<BargeInPage />} />
+                                            <Route path="/yaml" element={<RawYamlPage />} />
 
-                                        <Route path="/env" element={<EnvPage />} />
-                                        <Route path="/docker" element={<DockerPage />} />
-                                        <Route path="/asterisk" element={<AsteriskPage />} />
-                                        <Route path="/logs" element={<LogsPage />} />
-                                        <Route path="/terminal" element={<TerminalPage />} />
-                                        <Route path="/models" element={<ModelsPage />} />
-                                        <Route path="/updates" element={<UpdatesPage />} />
+                                            <Route path="/env" element={<EnvPage />} />
+                                            <Route path="/docker" element={<DockerPage />} />
+                                            <Route path="/asterisk" element={<AsteriskPage />} />
+                                            <Route path="/logs" element={<LogsPage />} />
+                                            <Route path="/terminal" element={<TerminalPage />} />
+                                            <Route path="/models" element={<ModelsPage />} />
+                                            <Route path="/updates" element={<UpdatesPage />} />
 
-                                        <Route path="/help" element={<HelpPage />} />
+                                            <Route path="/help" element={<HelpPage />} />
 
-                                        <Route path="/settings" element={<SettingsPage />} />
+                                            <Route path="/settings" element={<SettingsPage />} />
 
-                                        <Route path="*" element={<Navigate to="/" replace />} />
+                                            <Route path="*" element={<Navigate to="/" replace />} />
+                                        </Route>
                                     </Route>
                                 </Routes>
                             </Suspense>
