@@ -24,6 +24,7 @@ MAX_BACKUPS = 5
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+
 def _is_prefix(key: str, prefixes: tuple[str, ...]) -> bool:
     return any(key.startswith(p) for p in prefixes)
 
@@ -32,6 +33,7 @@ def _running_container_names() -> set:
     """Return a set of container names that are currently running."""
     try:
         import docker  # type: ignore
+
         client = docker.from_env()
         return {c.name for c in client.containers.list(filters={"status": "running"})}
     except Exception:
@@ -68,9 +70,12 @@ def _ai_engine_env_key(key: str) -> bool:
         # Track .env-owned health settings that require ai_engine recreate when changed.
         # Keep HEALTH_BIND_HOST excluded because compose can inject it even when unset,
         # which otherwise causes perpetual drift in Env UI.
-        _is_prefix(key, ("ASTERISK_", "LOG_", "DIAG_", "CALL_HISTORY_", "HEALTH_CHECK_"))
+        _is_prefix(
+            key, ("ASTERISK_", "LOG_", "DIAG_", "CALL_HISTORY_", "HEALTH_CHECK_")
+        )
         or key in ("HEALTH_API_TOKEN", "HEALTH_BIND_PORT")
-        or key in (
+        or key
+        in (
             "OPENAI_API_KEY",
             "GROQ_API_KEY",
             "DEEPGRAM_API_KEY",
@@ -85,7 +90,16 @@ def _ai_engine_env_key(key: str) -> bool:
             "TZ",
             "STREAMING_LOG_LEVEL",
         )
-        or _is_prefix(key, ("AUDIO_TRANSPORT", "DOWNSTREAM_MODE", "AUDIOSOCKET_", "EXTERNAL_MEDIA_", "BARGE_IN_"))
+        or _is_prefix(
+            key,
+            (
+                "AUDIO_TRANSPORT",
+                "DOWNSTREAM_MODE",
+                "AUDIOSOCKET_",
+                "EXTERNAL_MEDIA_",
+                "BARGE_IN_",
+            ),
+        )
         or _is_prefix(key, ("SMTP_",))
         # Local provider runtime uses these env vars via ${LOCAL_WS_*} placeholders in ai-agent.yaml
         or _is_prefix(key, ("LOCAL_WS_",))
@@ -93,16 +107,15 @@ def _ai_engine_env_key(key: str) -> bool:
 
 
 def _local_ai_env_key(key: str) -> bool:
-    return (
-        _is_prefix(key, ("LOCAL_", "KROKO_", "FASTER_WHISPER_", "WHISPER_CPP_", "MELOTTS_", "KOKORO_"))
-        or key in ("SHERPA_MODEL_PATH",)
-    )
+    return _is_prefix(
+        key,
+        ("LOCAL_", "KROKO_", "FASTER_WHISPER_", "WHISPER_CPP_", "MELOTTS_", "KOKORO_"),
+    ) or key in ("SHERPA_MODEL_PATH",)
 
 
 def _admin_ui_env_key(key: str) -> bool:
-    return (
-        key in ("JWT_SECRET", "DOCKER_SOCK", "DOCKER_GID", "TZ")
-        or _is_prefix(key, ("UVICORN_", "ADMIN_UI_"))
+    return key in ("JWT_SECRET", "DOCKER_SOCK", "DOCKER_GID", "TZ") or _is_prefix(
+        key, ("UVICORN_", "ADMIN_UI_")
     )
 
 
@@ -240,7 +253,9 @@ def _read_merged_config_dict() -> dict:
 def _read_merged_config_content() -> str:
     """Return the merged config as a YAML string (for display / validation)."""
     merged = _read_merged_config_dict()
-    return yaml.dump(merged, default_flow_style=False, sort_keys=False) if merged else ""
+    return (
+        yaml.dump(merged, default_flow_style=False, sort_keys=False) if merged else ""
+    )
 
 
 def _write_local_config(content: str) -> None:
@@ -251,6 +266,7 @@ def _write_local_config(content: str) -> None:
     and performs an atomic temp-file + rename write.
     """
     import datetime
+
     dir_path = os.path.dirname(settings.LOCAL_CONFIG_PATH)
     if dir_path:
         os.makedirs(dir_path, exist_ok=True)
@@ -271,7 +287,9 @@ def _write_local_config(content: str) -> None:
             original_mode = os.stat(candidate).st_mode
             break
 
-    with tempfile.NamedTemporaryFile("w", dir=dir_path, delete=False, suffix=".tmp") as f:
+    with tempfile.NamedTemporaryFile(
+        "w", dir=dir_path, delete=False, suffix=".tmp"
+    ) as f:
         f.write(content)
         temp_path = f.name
 
@@ -282,11 +300,13 @@ def _write_local_config(content: str) -> None:
 
 
 # Regex to strip ANSI escape codes from logs
-ANSI_ESCAPE = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+ANSI_ESCAPE = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+
 
 def strip_ansi_codes(text: str) -> str:
     """Remove ANSI escape codes from text for clean log files."""
-    return ANSI_ESCAPE.sub('', text)
+    return ANSI_ESCAPE.sub("", text)
+
 
 def _url_host(url: str) -> str:
     try:
@@ -327,7 +347,7 @@ def _rotate_backups(base_path: str) -> None:
     """
     pattern = f"{base_path}.bak.*"
     backups = sorted(glob.glob(pattern), key=os.path.getmtime, reverse=True)
-    
+
     # Delete oldest backups beyond MAX_BACKUPS
     for old_backup in backups[MAX_BACKUPS:]:
         try:
@@ -335,8 +355,10 @@ def _rotate_backups(base_path: str) -> None:
         except OSError:
             pass  # Ignore errors deleting old backups
 
+
 class ConfigUpdate(BaseModel):
     content: str
+
 
 @contextmanager
 def _temporary_dotenv(path: str, defaults: Dict[str, str] | None = None):
@@ -350,6 +372,7 @@ def _temporary_dotenv(path: str, defaults: Dict[str, str] | None = None):
     try:
         if path and os.path.exists(path):
             from dotenv import dotenv_values
+
             raw = dotenv_values(path)
             for key, value in (raw or {}).items():
                 if key and value is not None:
@@ -392,7 +415,9 @@ def _resolve_json_schema_ref(schema_root: Dict[str, Any], ref: str) -> Dict[str,
     return node if isinstance(node, dict) else {}
 
 
-def _collect_unknown_keys(data: Any, schema_root: Dict[str, Any], schema_node: Dict[str, Any], prefix: str) -> list:
+def _collect_unknown_keys(
+    data: Any, schema_root: Dict[str, Any], schema_node: Dict[str, Any], prefix: str
+) -> list:
     """
     Best-effort unknown-key detection using Pydantic's JSON schema.
 
@@ -428,7 +453,11 @@ def _collect_unknown_keys(data: Any, schema_root: Dict[str, Any], schema_node: D
         for key, subschema in properties.items():
             if key in data:
                 next_prefix = f"{prefix}.{key}" if prefix else key
-                warnings.extend(_collect_unknown_keys(data[key], schema_root, subschema, next_prefix))
+                warnings.extend(
+                    _collect_unknown_keys(
+                        data[key], schema_root, subschema, next_prefix
+                    )
+                )
         return warnings
 
     warnings: list = []
@@ -441,7 +470,9 @@ def _collect_unknown_keys(data: Any, schema_root: Dict[str, Any], schema_node: D
     for key, subschema in properties.items():
         if key in data:
             next_prefix = f"{prefix}.{key}" if prefix else key
-            warnings.extend(_collect_unknown_keys(data[key], schema_root, subschema, next_prefix))
+            warnings.extend(
+                _collect_unknown_keys(data[key], schema_root, subschema, next_prefix)
+            )
 
     return warnings
 
@@ -462,7 +493,10 @@ def _validate_ai_agent_config(content: str) -> Dict[str, Any]:
         raise HTTPException(status_code=400, detail=f"Invalid YAML: {str(exc)}")
 
     if not isinstance(parsed, dict):
-        raise HTTPException(status_code=400, detail="Invalid YAML: expected a mapping at the document root")
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid YAML: expected a mapping at the document root",
+        )
 
     # Ensure project root is importable so we can reuse canonical Pydantic models.
     project_root = getattr(settings, "PROJECT_ROOT", None)
@@ -482,15 +516,25 @@ def _validate_ai_agent_config(content: str) -> Dict[str, Any]:
 
     # Warn if user put credentials in YAML (they will be ignored by design).
     try:
-        asterisk_block = parsed.get("asterisk") if isinstance(parsed.get("asterisk"), dict) else {}
-        if isinstance(asterisk_block, dict) and any(k in asterisk_block for k in ("username", "password")):
-            warnings.append("Asterisk credentials in YAML are ignored; set ASTERISK_ARI_USERNAME/ASTERISK_ARI_PASSWORD in .env instead.")
+        asterisk_block = (
+            parsed.get("asterisk") if isinstance(parsed.get("asterisk"), dict) else {}
+        )
+        if isinstance(asterisk_block, dict) and any(
+            k in asterisk_block for k in ("username", "password")
+        ):
+            warnings.append(
+                "Asterisk credentials in YAML are ignored; set ASTERISK_ARI_USERNAME/ASTERISK_ARI_PASSWORD in .env instead."
+            )
 
-        providers_block = parsed.get("providers") if isinstance(parsed.get("providers"), dict) else {}
+        providers_block = (
+            parsed.get("providers") if isinstance(parsed.get("providers"), dict) else {}
+        )
         if isinstance(providers_block, dict):
             for provider_name, provider_cfg in providers_block.items():
                 if isinstance(provider_cfg, dict) and "api_key" in provider_cfg:
-                    warnings.append(f"providers.{provider_name}.api_key in YAML is ignored; set the provider API key in .env instead.")
+                    warnings.append(
+                        f"providers.{provider_name}.api_key in YAML is ignored; set the provider API key in .env instead."
+                    )
     except Exception:
         pass
 
@@ -498,24 +542,45 @@ def _validate_ai_agent_config(content: str) -> Dict[str, Any]:
     env_required_defaults: Dict[str, str] = {}
     try:
         from dotenv import dotenv_values
-        dotenv_map = dotenv_values(settings.ENV_PATH) if os.path.exists(settings.ENV_PATH) else {}
+
+        dotenv_map = (
+            dotenv_values(settings.ENV_PATH)
+            if os.path.exists(settings.ENV_PATH)
+            else {}
+        )
         get_dotenv = lambda k: str(dotenv_map.get(k) or "").strip()
 
-        ari_user_present = bool(get_dotenv("ASTERISK_ARI_USERNAME") or get_dotenv("ARI_USERNAME") or os.environ.get("ASTERISK_ARI_USERNAME") or os.environ.get("ARI_USERNAME"))
-        ari_pass_present = bool(get_dotenv("ASTERISK_ARI_PASSWORD") or get_dotenv("ARI_PASSWORD") or os.environ.get("ASTERISK_ARI_PASSWORD") or os.environ.get("ARI_PASSWORD"))
+        ari_user_present = bool(
+            get_dotenv("ASTERISK_ARI_USERNAME")
+            or get_dotenv("ARI_USERNAME")
+            or os.environ.get("ASTERISK_ARI_USERNAME")
+            or os.environ.get("ARI_USERNAME")
+        )
+        ari_pass_present = bool(
+            get_dotenv("ASTERISK_ARI_PASSWORD")
+            or get_dotenv("ARI_PASSWORD")
+            or os.environ.get("ASTERISK_ARI_PASSWORD")
+            or os.environ.get("ARI_PASSWORD")
+        )
 
         if not ari_user_present:
-            warnings.append("Missing ARI username in .env (ASTERISK_ARI_USERNAME or ARI_USERNAME). Engine will not connect to Asterisk ARI until set.")
+            warnings.append(
+                "Missing ARI username in .env (ASTERISK_ARI_USERNAME or ARI_USERNAME). Engine will not connect to Asterisk ARI until set."
+            )
             env_required_defaults["ASTERISK_ARI_USERNAME"] = "__MISSING__"
         if not ari_pass_present:
-            warnings.append("Missing ARI password in .env (ASTERISK_ARI_PASSWORD or ARI_PASSWORD). Engine will not connect to Asterisk ARI until set.")
+            warnings.append(
+                "Missing ARI password in .env (ASTERISK_ARI_PASSWORD or ARI_PASSWORD). Engine will not connect to Asterisk ARI until set."
+            )
             env_required_defaults["ASTERISK_ARI_PASSWORD"] = "__MISSING__"
     except Exception:
         pass
 
     # Validate using the same loader pipeline as ai-engine (env injection + defaults + normalization).
     dir_path = os.path.dirname(settings.CONFIG_PATH)
-    with tempfile.NamedTemporaryFile("w", dir=dir_path, delete=False, suffix=".validate.yaml") as f:
+    with tempfile.NamedTemporaryFile(
+        "w", dir=dir_path, delete=False, suffix=".validate.yaml"
+    ) as f:
         f.write(content)
         tmp_path = f.name
 
@@ -523,7 +588,9 @@ def _validate_ai_agent_config(content: str) -> Dict[str, Any]:
         with _temporary_dotenv(settings.ENV_PATH, defaults=env_required_defaults):
             load_config(tmp_path)
     except ValidationError as exc:
-        raise HTTPException(status_code=400, detail=f"Config schema validation failed: {exc}")
+        raise HTTPException(
+            status_code=400, detail=f"Config schema validation failed: {exc}"
+        )
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Config validation failed: {exc}")
     finally:
@@ -554,43 +621,61 @@ async def update_yaml_config(update: ConfigUpdate):
         # Parse desired merged config content from UI.
         new_parsed = _safe_load_no_duplicates(update.content) or {}
         if not isinstance(new_parsed, dict):
-            raise HTTPException(status_code=400, detail="Config YAML must be a mapping at the top level")
+            raise HTTPException(
+                status_code=400, detail="Config YAML must be a mapping at the top level"
+            )
 
         # Convert desired merged config into a minimal local override (supports deletions).
         base = _read_base_config_dict()
         local_override = _compute_local_override(base, new_parsed)
-        local_content = yaml.dump(local_override or {}, default_flow_style=False, sort_keys=False)
+        local_content = yaml.dump(
+            local_override or {}, default_flow_style=False, sort_keys=False
+        )
 
         # Write to LOCAL override file (keeps base ai-agent.yaml clean for git)
         _write_local_config(local_content)
-        
+
         # Determine recommended apply method based on what changed
         # hot_reload: contexts, MCP servers, greetings/instructions only
         # restart: most YAML changes (providers, pipelines, transport, VAD, etc.)
         # recreate: .env changes (handled separately in /env endpoint)
         recommended_method = "restart"  # Default for YAML changes
-        
+
         # Check if change is limited to hot-reloadable sections
         try:
             if old_merged:
                 # Keys that can be hot-reloaded
-                hot_reload_keys = {'contexts', 'profiles', 'mcp'}
-                
+                hot_reload_keys = {"contexts", "profiles", "mcp"}
+
                 # Check if only hot-reloadable keys changed
                 all_keys = set(old_merged.keys()) | set(new_parsed.keys())
                 changed_keys = set()
                 for key in all_keys:
                     if old_merged.get(key) != new_parsed.get(key):
                         changed_keys.add(key)
-                
+
                 if changed_keys and changed_keys.issubset(hot_reload_keys):
                     recommended_method = "hot_reload"
         except Exception:
             pass  # Fall back to restart if comparison fails
-        
-        apply_plan = ([{"service": "ai_engine", "method": "hot_reload", "endpoint": "/api/system/containers/ai_engine/reload"}]
-                     if recommended_method == "hot_reload"
-                     else [{"service": "ai_engine", "method": "restart", "endpoint": "/api/system/containers/ai_engine/restart"}])
+
+        apply_plan = (
+            [
+                {
+                    "service": "ai_engine",
+                    "method": "hot_reload",
+                    "endpoint": "/api/system/containers/ai_engine/reload",
+                }
+            ]
+            if recommended_method == "hot_reload"
+            else [
+                {
+                    "service": "ai_engine",
+                    "method": "restart",
+                    "endpoint": "/api/system/containers/ai_engine/restart",
+                }
+            ]
+        )
 
         return {
             "status": "success",
@@ -605,6 +690,7 @@ async def update_yaml_config(update: ConfigUpdate):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @router.get("/yaml")
 async def get_yaml_config():
     print(f"Accessing config at {settings.CONFIG_PATH}")
@@ -615,7 +701,9 @@ async def get_yaml_config():
         # Return the merged config (base + local overrides) so the editor
         # always shows the effective configuration the engine will use.
         config_content = _read_merged_config_content()
-        _safe_load_no_duplicates(config_content)  # Validate YAML and reject duplicate keys
+        _safe_load_no_duplicates(
+            config_content
+        )  # Validate YAML and reject duplicate keys
         return {"content": config_content}
     except yaml.YAMLError as e:
         logger.info("YAML parse error while reading config YAML", exc_info=True)
@@ -629,13 +717,15 @@ async def get_yaml_config():
             "snippet": None,
         }
         # Extract line/column from YAML error marks
-        if hasattr(e, 'problem_mark') and e.problem_mark:
+        if hasattr(e, "problem_mark") and e.problem_mark:
             mark = e.problem_mark
             error_info["line"] = mark.line + 1  # Convert to 1-indexed
             error_info["column"] = mark.column + 1
-        if hasattr(e, 'context_mark') and e.context_mark:
+        if hasattr(e, "context_mark") and e.context_mark:
             ctx_mark = e.context_mark
-            error_info["context"] = f"Line {ctx_mark.line + 1}, column {ctx_mark.column + 1}"
+            error_info["context"] = (
+                f"Line {ctx_mark.line + 1}, column {ctx_mark.column + 1}"
+            )
         # Try to extract a snippet around the error line
         if error_info["line"]:
             try:
@@ -646,18 +736,173 @@ async def get_yaml_config():
                 snippet_lines = []
                 for i in range(start, end):
                     prefix = ">>> " if i == line_num else "    "
-                    snippet_lines.append(f"{prefix}{i+1}: {lines[i]}")
+                    snippet_lines.append(f"{prefix}{i + 1}: {lines[i]}")
                 error_info["snippet"] = "\n".join(snippet_lines)
             except Exception:
                 pass
         # Return content along with error so Raw YAML editor can still load it for fixing
-        return {
-            "content": config_content,
-            "yaml_error": error_info
-        }
+        return {"content": config_content, "yaml_error": error_info}
     except Exception as e:
         logger.error("Unexpected error while reading config YAML", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to read config YAML") from e
+
+
+class ProviderSwitchRequest(BaseModel):
+    provider: str
+    context: str
+
+
+@router.get("/providers-summary")
+async def get_providers_summary():
+    """
+    Get a summary of available providers and contexts for quick switching.
+    Returns list of providers with their contexts.
+    """
+    config = _read_merged_config_dict()
+
+    providers = config.get("providers", {})
+    contexts = config.get("contexts", {})
+    default_provider = config.get("default_provider")
+    default_context = config.get("default_context")
+
+    result = {
+        "current": {
+            "provider": default_provider,
+            "context": default_context,
+        },
+        "available_providers": [],
+    }
+
+    # Get full-agent providers
+    full_agent_providers = [
+        "openai_realtime",
+        "google_live",
+        "deepgram",
+        "elevenlabs_agent",
+    ]
+
+    # Get provider names from config
+    provider_names = []
+    if isinstance(providers, dict):
+        provider_names = list(providers.keys())
+
+    for provider_name in provider_names:
+        provider_config = providers.get(provider_name, {})
+
+        # Check if it's a full-agent or pipeline provider
+        provider_type = provider_config.get("type", "")
+        is_full_agent = (
+            provider_type in full_agent_providers
+            or provider_name in full_agent_providers
+        )
+
+        # Get associated contexts
+        associated_contexts = []
+        for ctx_name, ctx_config in contexts.items():
+            ctx_provider = ctx_config.get("provider")
+            if ctx_provider == provider_name:
+                associated_contexts.append(
+                    {
+                        "name": ctx_name,
+                        "description": ctx_config.get("description", ""),
+                    }
+                )
+
+        result["available_providers"].append(
+            {
+                "name": provider_name,
+                "type": provider_type,
+                "is_full_agent": is_full_agent,
+                "contexts": associated_contexts,
+            }
+        )
+
+    return result
+
+
+@router.post("/switch-provider")
+async def switch_provider(request: ProviderSwitchRequest):
+    """
+    Switch to a different provider and/or context.
+    Updates the default_provider and default_context in config.
+    """
+    config = _read_merged_config_dict()
+
+    # Validate provider exists
+    providers = config.get("providers", {})
+    if request.provider not in providers:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Provider '{request.provider}' not found in configuration",
+        )
+
+    # Validate context exists (if provided)
+    if request.context:
+        contexts = config.get("contexts", {})
+        if request.context not in contexts:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Context '{request.context}' not found in configuration",
+            )
+
+    # Update config
+    local_config = {}
+    if os.path.exists(settings.LOCAL_CONFIG_PATH):
+        try:
+            with open(settings.LOCAL_CONFIG_PATH, "r") as f:
+                local_config = _safe_load_no_duplicates(f.read()) or {}
+        except Exception:
+            local_config = {}
+
+    # Update or add default_provider and default_context
+    if "default_provider" not in local_config:
+        local_config["default_provider"] = request.provider
+    else:
+        local_config["default_provider"] = request.provider
+
+    if request.context:
+        if "default_context" not in local_config:
+            local_config["default_context"] = request.context
+        else:
+            local_config["default_context"] = request.context
+
+    # Write back to local config
+    _write_local_config(
+        yaml.dump(local_config, default_flow_style=False, sort_keys=False)
+    )
+
+    # Trigger hot reload if possible
+    try:
+        import docker
+
+        client = docker.from_env()
+        try:
+            client.api.get("ai_engine")
+            # Try hot reload first
+            try:
+                import requests
+
+                resp = requests.post("http://localhost:15000/reload", timeout=5)
+                hot_reload_success = resp.status_code == 200
+            except Exception:
+                hot_reload_success = False
+
+            if not hot_reload_success:
+                # Restart container
+                container = client.containers.get("ai_engine")
+                container.restart()
+        except Exception:
+            pass
+    except ImportError:
+        pass
+
+    return {
+        "status": "success",
+        "message": f"Switched to provider '{request.provider}' with context '{request.context or 'default'}'",
+        "provider": request.provider,
+        "context": request.context,
+    }
+
 
 @router.get("/env")
 async def get_env_config():
@@ -670,33 +915,36 @@ async def get_env_config():
         try:
             # Use dotenv_values for proper parsing of quoted values
             from dotenv import dotenv_values
+
             env_vars = dotenv_values(settings.ENV_PATH)
             # Convert to regular dict (dotenv_values returns OrderedDict)
             # and filter out None values (unset keys)
             env_vars = {k: v for k, v in env_vars.items() if v is not None}
         except ImportError:
             # Fallback to manual parsing if python-dotenv not available
-            with open(settings.ENV_PATH, 'r') as f:
+            with open(settings.ENV_PATH, "r") as f:
                 for line in f:
                     line = line.strip()
-                    if line and not line.startswith('#'):
-                        if '=' in line:
-                            key, value = line.split('=', 1)
+                    if line and not line.startswith("#"):
+                        if "=" in line:
+                            key, value = line.split("=", 1)
                             # Strip surrounding quotes if present
                             value = value.strip()
-                            if (value.startswith('"') and value.endswith('"')) or \
-                               (value.startswith("'") and value.endswith("'")):
+                            if (value.startswith('"') and value.endswith('"')) or (
+                                value.startswith("'") and value.endswith("'")
+                            ):
                                 value = value[1:-1]
                             env_vars[key.strip()] = value
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
     return env_vars
 
+
 @router.post("/env")
 async def update_env(env_data: Dict[str, Optional[str]]):
     """
     Update .env file with provided key-value pairs.
-    
+
     - Pass a string value to set/update a key
     - Pass None or "__DELETE__" to remove a key entirely (line is removed, not commented)
     - Values with spaces, #, quotes, $, etc. are automatically quoted
@@ -719,20 +967,27 @@ async def update_env(env_data: Dict[str, Optional[str]]):
         for key, value in env_data.items():
             if not key or not key.strip():
                 raise HTTPException(status_code=400, detail="Empty key not allowed")
-            if value is not None and '\n' in str(value):
-                raise HTTPException(status_code=400, detail=f"Newlines not allowed in value: {key}")
-            if '\n' in key:
-                raise HTTPException(status_code=400, detail=f"Newlines not allowed in key: {key}")
-            if '=' in key:
-                raise HTTPException(status_code=400, detail=f"Key cannot contain '=': {key}")
-        
+            if value is not None and "\n" in str(value):
+                raise HTTPException(
+                    status_code=400, detail=f"Newlines not allowed in value: {key}"
+                )
+            if "\n" in key:
+                raise HTTPException(
+                    status_code=400, detail=f"Newlines not allowed in key: {key}"
+                )
+            if "=" in key:
+                raise HTTPException(
+                    status_code=400, detail=f"Key cannot contain '=': {key}"
+                )
+
         # Create backup before saving
         if os.path.exists(settings.ENV_PATH):
             import datetime
+
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             backup_path = f"{settings.ENV_PATH}.bak.{timestamp}"
-            with open(settings.ENV_PATH, 'r') as src:
-                with open(backup_path, 'w') as dst:
+            with open(settings.ENV_PATH, "r") as src:
+                with open(backup_path, "w") as dst:
                     dst.write(src.read())
             # A11: Rotate backups
             _rotate_backups(settings.ENV_PATH)
@@ -740,91 +995,101 @@ async def update_env(env_data: Dict[str, Optional[str]]):
         # Read existing lines
         lines = []
         if os.path.exists(settings.ENV_PATH):
-            with open(settings.ENV_PATH, 'r') as f:
+            with open(settings.ENV_PATH, "r") as f:
                 lines = f.readlines()
 
         # Create a map of keys to ALL their line indices (handles duplicates)
         # SECURITY: Track all occurrences so we can remove duplicates that might contain old secrets
         from collections import defaultdict
+
         key_occurrences = defaultdict(list)  # key -> [line_idx, line_idx, ...]
         existing_values = {}  # key -> current value (for change detection)
         for i, line in enumerate(lines):
             stripped = line.strip()
-            if stripped and not stripped.startswith('#'):
-                if '=' in stripped:
-                    key, raw_val = stripped.split('=', 1)
+            if stripped and not stripped.startswith("#"):
+                if "=" in stripped:
+                    key, raw_val = stripped.split("=", 1)
                     key = key.strip()
                     key_occurrences[key].append(i)
                     # Parse existing value for change detection (strip quotes)
                     val = raw_val.strip()
-                    if (val.startswith('"') and val.endswith('"')) or (val.startswith("'") and val.endswith("'")):
+                    if (val.startswith('"') and val.endswith('"')) or (
+                        val.startswith("'") and val.endswith("'")
+                    ):
                         val = val[1:-1]
                     existing_values[key] = val
 
         # Update existing keys or append new ones
         new_lines = lines.copy()
-        
+
         # Ensure we have a newline at the end if the file is not empty
-        if new_lines and not new_lines[-1].endswith('\n'):
-            new_lines[-1] += '\n'
+        if new_lines and not new_lines[-1].endswith("\n"):
+            new_lines[-1] += "\n"
 
         # Track keys to delete (value is None or special marker)
         keys_to_delete = set()
         # Track keys being updated (to remove duplicate earlier occurrences)
         keys_to_update = set()
-        
+
         for key, value in env_data.items():
             # Skip empty keys
             if not key:
                 continue
-            
+
             # Support deletion: None or special "__DELETE__" marker removes the key
             # SECURITY: Actually remove the line to avoid leaking old secrets
             if value is None or value == "__DELETE__":
                 keys_to_delete.add(key)
                 continue
-            
+
             str_value = str(value)
-            
+
             # Only track as changed if value actually differs from existing
             existing_val = existing_values.get(key)
             # Normalize for comparison: strip quotes from incoming if present
             cmp_value = str_value
-            if (cmp_value.startswith('"') and cmp_value.endswith('"')) or (cmp_value.startswith("'") and cmp_value.endswith("'")):
+            if (cmp_value.startswith('"') and cmp_value.endswith('"')) or (
+                cmp_value.startswith("'") and cmp_value.endswith("'")
+            ):
                 cmp_value = cmp_value[1:-1]
             if existing_val != cmp_value:
                 keys_to_update.add(key)
-            
+
             # Check if value is already properly quoted (from UI round-trip)
             # Don't double-quote values that are already quoted
             already_quoted = (
-                (str_value.startswith('"') and str_value.endswith('"') and len(str_value) >= 2) or
-                (str_value.startswith("'") and str_value.endswith("'") and len(str_value) >= 2)
+                str_value.startswith('"')
+                and str_value.endswith('"')
+                and len(str_value) >= 2
+            ) or (
+                str_value.startswith("'")
+                and str_value.endswith("'")
+                and len(str_value) >= 2
             )
-            
+
             if already_quoted:
                 # Value is already quoted, use as-is
                 line_content = f"{key}={str_value}\n"
             else:
                 # Determine if quoting is needed
                 needs_quoting = (
-                    not str_value or  # Empty string
-                    ' ' in str_value or  # Spaces
-                    '#' in str_value or  # Comments
-                    '"' in str_value or  # Internal quotes need escaping
-                    "'" in str_value or  # Single quotes
-                    '$' in str_value or  # Variable expansion
-                    '`' in str_value or  # Command substitution
-                    '\\' in str_value    # Backslashes
+                    not str_value  # Empty string
+                    or " " in str_value  # Spaces
+                    or "#" in str_value  # Comments
+                    or '"' in str_value  # Internal quotes need escaping
+                    or "'" in str_value  # Single quotes
+                    or "$" in str_value  # Variable expansion
+                    or "`" in str_value  # Command substitution
+                    or "\\" in str_value  # Backslashes
                 )
-                
+
                 if needs_quoting:
                     # Escape internal double quotes and backslashes, then wrap in quotes
-                    escaped_value = str_value.replace('\\', '\\\\').replace('"', '\\"')
+                    escaped_value = str_value.replace("\\", "\\\\").replace('"', '\\"')
                     line_content = f'{key}="{escaped_value}"\n'
                 else:
                     line_content = f"{key}={str_value}\n"
-            
+
             occurrences = key_occurrences.get(key, [])
             if occurrences:
                 # Update the LAST occurrence, mark earlier ones for removal
@@ -836,12 +1101,12 @@ async def update_env(env_data: Dict[str, Optional[str]]):
             else:
                 # Append new key
                 new_lines.append(line_content)
-        
+
         # SECURITY: Remove ALL occurrences of deleted keys (not just last)
         for key in keys_to_delete:
             for idx in key_occurrences.get(key, []):
                 new_lines[idx] = None  # Mark for removal
-        
+
         # Filter out removed lines
         new_lines = [line for line in new_lines if line is not None]
 
@@ -851,17 +1116,19 @@ async def update_env(env_data: Dict[str, Optional[str]]):
         original_mode = None
         if os.path.exists(settings.ENV_PATH):
             original_mode = os.stat(settings.ENV_PATH).st_mode
-        
-        with tempfile.NamedTemporaryFile('w', dir=dir_path, delete=False, suffix='.tmp') as f:
+
+        with tempfile.NamedTemporaryFile(
+            "w", dir=dir_path, delete=False, suffix=".tmp"
+        ) as f:
             f.writelines(new_lines)
             temp_path = f.name
-        
+
         # Restore original permissions before replace
         if original_mode is not None:
             os.chmod(temp_path, original_mode)
-        
+
         os.replace(temp_path, settings.ENV_PATH)  # Atomic on POSIX
-        
+
         changed_keys = sorted(set(keys_to_update) | set(keys_to_delete))
 
         impacts_ai_engine = any(_ai_engine_env_key(k) for k in changed_keys)
@@ -877,16 +1144,36 @@ async def update_env(env_data: Dict[str, Optional[str]]):
         # NOTE: For ai_engine/local_ai_server, env_file (.env) changes require a force-recreate.
         # The frontend calls /restart?recreate=true for these services.
         if impacts_ai_engine and "ai_engine" in running:
-            apply_plan.append({"service": "ai_engine", "method": "recreate", "endpoint": "/api/system/containers/ai_engine/restart"})
+            apply_plan.append(
+                {
+                    "service": "ai_engine",
+                    "method": "recreate",
+                    "endpoint": "/api/system/containers/ai_engine/restart",
+                }
+            )
         if impacts_local_ai and "local_ai_server" in running:
-            apply_plan.append({"service": "local_ai_server", "method": "recreate", "endpoint": "/api/system/containers/local_ai_server/restart"})
+            apply_plan.append(
+                {
+                    "service": "local_ai_server",
+                    "method": "recreate",
+                    "endpoint": "/api/system/containers/local_ai_server/restart",
+                }
+            )
         if impacts_admin_ui and "admin_ui" in running:
             # Admin UI reads .env from disk at startup; a restart is sufficient in most cases.
-            apply_plan.append({"service": "admin_ui", "method": "restart", "endpoint": "/api/system/containers/admin_ui/restart"})
+            apply_plan.append(
+                {
+                    "service": "admin_ui",
+                    "method": "restart",
+                    "endpoint": "/api/system/containers/admin_ui/restart",
+                }
+            )
 
         message = "Environment saved. Restart impacted services to apply changes."
         if impacts_admin_ui:
-            message += " (Restarting Admin UI will invalidate sessions if JWT_SECRET changed.)"
+            message += (
+                " (Restarting Admin UI will invalidate sessions if JWT_SECRET changed.)"
+            )
 
         return {
             "status": "success",
@@ -913,16 +1200,23 @@ async def get_env_status():
     try:
         from dotenv import dotenv_values
     except Exception as e:
-        raise HTTPException(status_code=500, detail="python-dotenv is required for env status") from e
+        raise HTTPException(
+            status_code=500, detail="python-dotenv is required for env status"
+        ) from e
 
-    env_map = dotenv_values(settings.ENV_PATH) if os.path.exists(settings.ENV_PATH) else {}
+    env_map = (
+        dotenv_values(settings.ENV_PATH) if os.path.exists(settings.ENV_PATH) else {}
+    )
     env_map = {k: str(v) for k, v in (env_map or {}).items() if k and v is not None}
 
     try:
         import docker  # type: ignore
+
         client = docker.from_env()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Docker unavailable for env status: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Docker unavailable for env status: {str(e)}"
+        )
 
     def _container_env(name: str) -> Dict[str, str]:
         try:
@@ -938,7 +1232,9 @@ async def get_env_status():
         except Exception:
             return {}
 
-    def _diff_keys(*, desired: Dict[str, str], actual: Dict[str, str], key_pred) -> list[str]:
+    def _diff_keys(
+        *, desired: Dict[str, str], actual: Dict[str, str], key_pred
+    ) -> list[str]:
         keys = set()
         keys.update([k for k in desired.keys() if key_pred(k)])
         keys.update([k for k in actual.keys() if key_pred(k)])
@@ -956,20 +1252,52 @@ async def get_env_status():
     running = _running_container_names()
 
     ai_env = _container_env("ai_engine") if "ai_engine" in running else {}
-    local_env = _container_env("local_ai_server") if "local_ai_server" in running else {}
+    local_env = (
+        _container_env("local_ai_server") if "local_ai_server" in running else {}
+    )
     admin_env = _container_env("admin_ui") if "admin_ui" in running else {}
 
-    drift_ai = _diff_keys(desired=env_map, actual=ai_env, key_pred=_ai_engine_env_key) if "ai_engine" in running else []
-    drift_local = _diff_keys(desired=env_map, actual=local_env, key_pred=_local_ai_env_key) if "local_ai_server" in running else []
-    drift_admin = _diff_keys(desired=env_map, actual=admin_env, key_pred=_admin_ui_env_key) if "admin_ui" in running else []
+    drift_ai = (
+        _diff_keys(desired=env_map, actual=ai_env, key_pred=_ai_engine_env_key)
+        if "ai_engine" in running
+        else []
+    )
+    drift_local = (
+        _diff_keys(desired=env_map, actual=local_env, key_pred=_local_ai_env_key)
+        if "local_ai_server" in running
+        else []
+    )
+    drift_admin = (
+        _diff_keys(desired=env_map, actual=admin_env, key_pred=_admin_ui_env_key)
+        if "admin_ui" in running
+        else []
+    )
 
     apply_plan = []
     if drift_local:
-        apply_plan.append({"service": "local_ai_server", "method": "recreate", "endpoint": "/api/system/containers/local_ai_server/restart"})
+        apply_plan.append(
+            {
+                "service": "local_ai_server",
+                "method": "recreate",
+                "endpoint": "/api/system/containers/local_ai_server/restart",
+            }
+        )
     if drift_ai:
-        apply_plan.append({"service": "ai_engine", "method": "recreate", "endpoint": "/api/system/containers/ai_engine/restart"})
+        apply_plan.append(
+            {
+                "service": "ai_engine",
+                "method": "recreate",
+                "endpoint": "/api/system/containers/ai_engine/restart",
+            }
+        )
     if drift_admin:
-        apply_plan.append({"service": "admin_ui", "method": "restart", "endpoint": "/api/system/containers/admin_ui/restart"})
+        apply_plan.append(
+            {
+                "service": "admin_ui",
+                "method": "restart",
+                "endpoint": "/api/system/containers/admin_ui/restart",
+            }
+        )
 
     return {
         "pending_restart": bool(apply_plan),
@@ -981,9 +1309,11 @@ async def get_env_status():
         },
     }
 
+
 class ProviderTestRequest(BaseModel):
     name: str
     config: Dict[str, Any]
+
 
 class SmtpTestRequest(BaseModel):
     to_email: str
@@ -999,31 +1329,37 @@ class SmtpTestRequest(BaseModel):
     smtp_tls_verify: Optional[Union[bool, str]] = None
     smtp_timeout_seconds: Optional[Union[float, str]] = None
 
+
 @router.post("/providers/test")
 async def test_provider_connection(request: ProviderTestRequest):
     """Test connection to a provider based on its configuration"""
     try:
         import httpx
         import os
-        
+
         # Helper to read API keys from .env file
         def get_env_key(key_name: str) -> str:
             """Read API key from .env file"""
             if os.path.exists(settings.ENV_PATH):
-                with open(settings.ENV_PATH, 'r') as f:
+                with open(settings.ENV_PATH, "r") as f:
                     for line in f:
                         line = line.strip()
                         if line.startswith(f"{key_name}="):
-                            value = line.split('=', 1)[1].strip()
+                            value = line.split("=", 1)[1].strip()
                             # Strip surrounding single or double quotes (common .env convention)
-                            if len(value) >= 2 and value[0] == value[-1] and value[0] in ('"', "'"):
+                            if (
+                                len(value) >= 2
+                                and value[0] == value[-1]
+                                and value[0] in ('"', "'")
+                            ):
                                 value = value[1:-1]
                             return value
-            return ''
-        
+            return ""
+
         # Helper to substitute environment variables in config values
         def substitute_env_vars(item):
             import re
+
             if isinstance(item, dict):
                 return {k: substitute_env_vars(v) for k, v in item.items()}
             elif isinstance(item, list):
@@ -1031,8 +1367,8 @@ async def test_provider_connection(request: ProviderTestRequest):
             elif isinstance(item, str):
                 # Match ${VAR} or ${VAR:-default} or ${VAR:=default}
                 # Capture group 1: Var name, Group 2: Default value (optional)
-                pattern = r'\$\{([a-zA-Z_][a-zA-Z0-9_]*)(?:[:=-]([^}]*))?\}'
-                
+                pattern = r"\$\{([a-zA-Z_][a-zA-Z0-9_]*)(?:[:=-]([^}]*))?\}"
+
                 def replace(match):
                     var_name = match.group(1)
                     default_value = match.group(2)
@@ -1049,37 +1385,42 @@ async def test_provider_connection(request: ProviderTestRequest):
                     if default_value is not None:
                         return default_value
                     # If neither, return empty string (standard shell behavior)
-                    return "" 
-                
+                    return ""
+
                 return re.sub(pattern, replace, item)
             return item
 
         # Apply substitution to the config
         provider_config = substitute_env_vars(request.config)
         provider_name = request.name.lower()
-        
+
         # ============================================================
         # LOCAL PROVIDER - test connection to local_ai_server
         # ============================================================
-        if 'local' in provider_name or provider_config.get('type') == 'local':
+        if "local" in provider_name or provider_config.get("type") == "local":
             import websockets
             import json
-            
+
             # Get WebSocket URL from either base_url or ws_url
-            ws_url = provider_config.get('base_url') or provider_config.get('ws_url') or 'ws://127.0.0.1:8765'
+            ws_url = (
+                provider_config.get("base_url")
+                or provider_config.get("ws_url")
+                or "ws://127.0.0.1:8765"
+            )
             # Handle env var format
-            if '${' in ws_url:
-                ws_url = 'ws://127.0.0.1:8765'  # Default fallback
-            
+            if "${" in ws_url:
+                ws_url = "ws://127.0.0.1:8765"  # Default fallback
+
             try:
+
                 def _fallback_ws_url(url: str) -> str:
                     """
                     In host-networked deployments, `local_ai_server` DNS does not resolve because it is not
                     a Docker bridge network hostname. Fall back to localhost for best compatibility.
                     """
                     try:
-                        if 'local_ai_server' in url:
-                            return url.replace('local_ai_server', '127.0.0.1')
+                        if "local_ai_server" in url:
+                            return url.replace("local_ai_server", "127.0.0.1")
                     except Exception:
                         pass
                     return url
@@ -1111,82 +1452,131 @@ async def test_provider_connection(request: ProviderTestRequest):
 
                     stt_backend = data.get("stt_backend", "unknown")
                     tts_backend = data.get("tts_backend", "unknown")
-                    llm_model = models.get("llm", {}).get("path", "").split("/")[-1] if models.get("llm", {}).get("path") else "none"
+                    llm_model = (
+                        models.get("llm", {}).get("path", "").split("/")[-1]
+                        if models.get("llm", {}).get("path")
+                        else "none"
+                    )
 
                     status_parts = []
-                    status_parts.append(f"STT: {stt_backend} ✓" if stt_loaded else "STT: not loaded")
-                    status_parts.append(f"LLM: {llm_model} ✓" if llm_loaded else "LLM: not loaded")
-                    status_parts.append(f"TTS: {tts_backend} ✓" if tts_loaded else "TTS: not loaded")
+                    status_parts.append(
+                        f"STT: {stt_backend} ✓" if stt_loaded else "STT: not loaded"
+                    )
+                    status_parts.append(
+                        f"LLM: {llm_model} ✓" if llm_loaded else "LLM: not loaded"
+                    )
+                    status_parts.append(
+                        f"TTS: {tts_backend} ✓" if tts_loaded else "TTS: not loaded"
+                    )
 
                     all_loaded = stt_loaded and llm_loaded and tts_loaded
                     return {
                         "success": all_loaded,
                         "message": f"Local AI Server connected ({effective_url}). {' | '.join(status_parts)}",
                     }
-                return {"success": False, "message": "Local AI Server responded but status invalid"}
+                return {
+                    "success": False,
+                    "message": "Local AI Server responded but status invalid",
+                }
             except Exception as e:
-                logger.debug("Local AI Server validation failed", error=str(e), exc_info=True)
-                return {"success": False, "message": f"Cannot connect to Local AI Server at {ws_url} (see server logs)"}
-        
+                logger.debug(
+                    "Local AI Server validation failed", error=str(e), exc_info=True
+                )
+                return {
+                    "success": False,
+                    "message": f"Cannot connect to Local AI Server at {ws_url} (see server logs)",
+                }
+
         # ============================================================
         # ELEVENLABS AGENT - check before other providers
         # ============================================================
-        if 'elevenlabs' in provider_name or 'agent_id' in provider_config:
-            api_key = get_env_key('ELEVENLABS_API_KEY')
+        if "elevenlabs" in provider_name or "agent_id" in provider_config:
+            api_key = get_env_key("ELEVENLABS_API_KEY")
             if not api_key:
-                return {"success": False, "message": "ELEVENLABS_API_KEY not set in .env file"}
-            
+                return {
+                    "success": False,
+                    "message": "ELEVENLABS_API_KEY not set in .env file",
+                }
+
             async with httpx.AsyncClient() as client:
                 # Use /v1/voices endpoint for validation (works with all API key types)
                 response = await client.get(
                     "https://api.elevenlabs.io/v1/voices",
                     headers={"xi-api-key": api_key, "Accept": "application/json"},
-                    timeout=10.0
+                    timeout=10.0,
                 )
                 if response.status_code == 200:
                     data = response.json()
-                    voice_count = len(data.get('voices', []))
-                    return {"success": True, "message": f"Connected to ElevenLabs ({voice_count} voices available)"}
-                return {"success": False, "message": f"ElevenLabs API error: HTTP {response.status_code}"}
-        
+                    voice_count = len(data.get("voices", []))
+                    return {
+                        "success": True,
+                        "message": f"Connected to ElevenLabs ({voice_count} voices available)",
+                    }
+                return {
+                    "success": False,
+                    "message": f"ElevenLabs API error: HTTP {response.status_code}",
+                }
+
         # ============================================================
         # OPENAI REALTIME
         # ============================================================
-        if 'realtime_base_url' in provider_config or 'turn_detection' in provider_config:
+        if (
+            "realtime_base_url" in provider_config
+            or "turn_detection" in provider_config
+        ):
             # OpenAI Realtime
-            api_key = get_env_key('OPENAI_API_KEY')
+            api_key = get_env_key("OPENAI_API_KEY")
             if not api_key:
-                return {"success": False, "message": "OPENAI_API_KEY not set in .env file"}
+                return {
+                    "success": False,
+                    "message": "OPENAI_API_KEY not set in .env file",
+                }
             async with httpx.AsyncClient() as client:
                 response = await client.get(
                     "https://api.openai.com/v1/models",
                     headers={"Authorization": f"Bearer {api_key}"},
-                    timeout=10.0
+                    timeout=10.0,
                 )
                 if response.status_code == 200:
-                    return {"success": True, "message": f"Connected to OpenAI (HTTP {response.status_code})"}
-                return {"success": False, "message": f"OpenAI API error: HTTP {response.status_code}"}
+                    return {
+                        "success": True,
+                        "message": f"Connected to OpenAI (HTTP {response.status_code})",
+                    }
+                return {
+                    "success": False,
+                    "message": f"OpenAI API error: HTTP {response.status_code}",
+                }
 
         # ============================================================
         # TELNYX (OpenAI-compatible) - validate /models + a tiny /chat/completions
         # ============================================================
-        provider_type = str(provider_config.get('type') or '').lower()
-        chat_base_url = (provider_config.get('chat_base_url') or provider_config.get('base_url') or '').rstrip('/')
+        provider_type = str(provider_config.get("type") or "").lower()
+        chat_base_url = (
+            provider_config.get("chat_base_url")
+            or provider_config.get("base_url")
+            or ""
+        ).rstrip("/")
         host = _url_host(chat_base_url)
-        is_telnyx = provider_type in ('telnyx', 'telenyx') or ('telnyx' in provider_name) or host == 'api.telnyx.com'
+        is_telnyx = (
+            provider_type in ("telnyx", "telenyx")
+            or ("telnyx" in provider_name)
+            or host == "api.telnyx.com"
+        )
         if is_telnyx:
-            base_url = _safe_base_url(chat_base_url, 'https://api.telnyx.com/v2/ai')
-            api_key = get_env_key('TELNYX_API_KEY') or os.getenv('TELNYX_API_KEY') or ''
+            base_url = _safe_base_url(chat_base_url, "https://api.telnyx.com/v2/ai")
+            api_key = get_env_key("TELNYX_API_KEY") or os.getenv("TELNYX_API_KEY") or ""
             if not api_key:
                 return {"success": False, "message": "TELNYX_API_KEY not set in .env"}
 
             # Prefer explicit model config; if unset, use a safe default for testing.
-            model = (provider_config.get('chat_model') or provider_config.get('model') or '').strip()
+            model = (
+                provider_config.get("chat_model") or provider_config.get("model") or ""
+            ).strip()
             if not model:
                 model = "Qwen/Qwen3-235B-A22B"
 
-            api_key_ref = (provider_config.get('api_key_ref') or '').strip()
-            if model.startswith('openai/') and not api_key_ref:
+            api_key_ref = (provider_config.get("api_key_ref") or "").strip()
+            if model.startswith("openai/") and not api_key_ref:
                 return {
                     "success": False,
                     "message": "Telnyx external models like openai/* require api_key_ref (Integration Secret identifier).",
@@ -1195,7 +1585,11 @@ async def test_provider_connection(request: ProviderTestRequest):
             def _telnyx_error_summary(resp: httpx.Response) -> str:
                 try:
                     j = resp.json()
-                    if isinstance(j, dict) and isinstance(j.get("errors"), list) and j["errors"]:
+                    if (
+                        isinstance(j, dict)
+                        and isinstance(j.get("errors"), list)
+                        and j["errors"]
+                    ):
                         e0 = j["errors"][0] if isinstance(j["errors"][0], dict) else {}
                         code = e0.get("code")
                         title = e0.get("title")
@@ -1215,7 +1609,10 @@ async def test_provider_connection(request: ProviderTestRequest):
                         headers={"Authorization": f"Bearer {api_key}"},
                     )
                     if models_resp.status_code != 200:
-                        return {"success": False, "message": f"Telnyx /models failed: {_telnyx_error_summary(models_resp)}"}
+                        return {
+                            "success": False,
+                            "message": f"Telnyx /models failed: {_telnyx_error_summary(models_resp)}",
+                        }
 
                     payload: Dict[str, Any] = {
                         "model": model,
@@ -1231,37 +1628,54 @@ async def test_provider_connection(request: ProviderTestRequest):
 
                     chat_resp = await client.post(
                         f"{base_url}/chat/completions",
-                        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                        headers={
+                            "Authorization": f"Bearer {api_key}",
+                            "Content-Type": "application/json",
+                        },
                         json=payload,
                     )
                     if chat_resp.status_code == 200:
-                        return {"success": True, "message": f"Connected to Telnyx. Chat completion OK with model: {model}"}
-                    return {"success": False, "message": f"Telnyx chat completion failed: {_telnyx_error_summary(chat_resp)}"}
+                        return {
+                            "success": True,
+                            "message": f"Connected to Telnyx. Chat completion OK with model: {model}",
+                        }
+                    return {
+                        "success": False,
+                        "message": f"Telnyx chat completion failed: {_telnyx_error_summary(chat_resp)}",
+                    }
             except Exception as e:
-                logger.debug("Telnyx provider validation failed", error=str(e), exc_info=True)
-                return {"success": False, "message": f"Cannot connect to Telnyx at {base_url} (see server logs)"}
+                logger.debug(
+                    "Telnyx provider validation failed", error=str(e), exc_info=True
+                )
+                return {
+                    "success": False,
+                    "message": f"Cannot connect to Telnyx at {base_url} (see server logs)",
+                }
 
         # ============================================================
         # OPENAI-COMPATIBLE (OpenAI / Groq / OpenRouter / etc.) - validate /models
         # ============================================================
-        if provider_type == 'openai':
+        if provider_type == "openai":
             chat_base_url = _safe_base_url(
-                provider_config.get('chat_base_url') or '', 'https://api.openai.com/v1'
+                provider_config.get("chat_base_url") or "", "https://api.openai.com/v1"
             )
-            api_key = provider_config.get('api_key')
+            api_key = provider_config.get("api_key")
             if not api_key:
                 inferred_env = None
                 host = _url_host(chat_base_url)
-                if 'groq' in provider_name or host == 'api.groq.com':
-                    inferred_env = 'GROQ_API_KEY'
-                elif 'openai' in provider_name or host == 'api.openai.com':
-                    inferred_env = 'OPENAI_API_KEY'
+                if "groq" in provider_name or host == "api.groq.com":
+                    inferred_env = "GROQ_API_KEY"
+                elif "openai" in provider_name or host == "api.openai.com":
+                    inferred_env = "OPENAI_API_KEY"
 
                 if inferred_env:
-                    api_key = get_env_key(inferred_env) or os.getenv(inferred_env) or ''
+                    api_key = get_env_key(inferred_env) or os.getenv(inferred_env) or ""
 
             if not api_key:
-                return {"success": False, "message": "API key missing for OpenAI-compatible provider (set api_key or env var)"}
+                return {
+                    "success": False,
+                    "message": "API key missing for OpenAI-compatible provider (set api_key or env var)",
+                }
 
             try:
                 async with httpx.AsyncClient() as client:
@@ -1273,29 +1687,53 @@ async def test_provider_connection(request: ProviderTestRequest):
                     if response.status_code == 200:
                         try:
                             data = response.json()
-                            models = data.get('data') or []
-                            return {"success": True, "message": f"Connected (OpenAI-compatible). Found {len(models)} models."}
+                            models = data.get("data") or []
+                            return {
+                                "success": True,
+                                "message": f"Connected (OpenAI-compatible). Found {len(models)} models.",
+                            }
                         except Exception:
-                            return {"success": True, "message": f"Connected (OpenAI-compatible) (HTTP {response.status_code})"}
+                            return {
+                                "success": True,
+                                "message": f"Connected (OpenAI-compatible) (HTTP {response.status_code})",
+                            }
                     if response.status_code == 401:
                         return {"success": False, "message": "Invalid API key (401)"}
-                    return {"success": False, "message": f"Provider API error: HTTP {response.status_code}"}
+                    return {
+                        "success": False,
+                        "message": f"Provider API error: HTTP {response.status_code}",
+                    }
             except Exception as e:
                 # Avoid leaking exception internals in API responses (CodeQL).
-                logger.debug("OpenAI-compatible provider validation failed", error=str(e), exc_info=True)
-                return {"success": False, "message": f"Cannot connect to provider at {chat_base_url} (see server logs)"}
+                logger.debug(
+                    "OpenAI-compatible provider validation failed",
+                    error=str(e),
+                    exc_info=True,
+                )
+                return {
+                    "success": False,
+                    "message": f"Cannot connect to provider at {chat_base_url} (see server logs)",
+                }
 
         # ============================================================
         # GROQ SPEECH (STT/TTS) - validate via /models (OpenAI-compatible)
         # ============================================================
-        if provider_config.get('type') == 'groq':
-            api_key = provider_config.get('api_key') or get_env_key('GROQ_API_KEY') or os.getenv('GROQ_API_KEY') or ''
+        if provider_config.get("type") == "groq":
+            api_key = (
+                provider_config.get("api_key")
+                or get_env_key("GROQ_API_KEY")
+                or os.getenv("GROQ_API_KEY")
+                or ""
+            )
             if not api_key:
-                return {"success": False, "message": "GROQ_API_KEY not set (set api_key or env var)"}
+                return {
+                    "success": False,
+                    "message": "GROQ_API_KEY not set (set api_key or env var)",
+                }
 
             # SECURITY: For provider validation, do not call user-provided base URLs.
             # Keep this check pinned to the official Groq OpenAI-compatible endpoint.
-            base_url = 'https://api.groq.com/openai/v1'
+            base_url = "https://api.groq.com/openai/v1"
 
             try:
                 async with httpx.AsyncClient() as client:
@@ -1307,55 +1745,93 @@ async def test_provider_connection(request: ProviderTestRequest):
                     if response.status_code == 200:
                         try:
                             data = response.json()
-                            models = data.get('data') or []
-                            return {"success": True, "message": f"Connected (Groq Speech). Found {len(models)} models."}
+                            models = data.get("data") or []
+                            return {
+                                "success": True,
+                                "message": f"Connected (Groq Speech). Found {len(models)} models.",
+                            }
                         except Exception:
-                            return {"success": True, "message": f"Connected (Groq Speech) (HTTP {response.status_code})"}
+                            return {
+                                "success": True,
+                                "message": f"Connected (Groq Speech) (HTTP {response.status_code})",
+                            }
                     if response.status_code == 401:
                         return {"success": False, "message": "Invalid API key (401)"}
-                    return {"success": False, "message": f"Provider API error: HTTP {response.status_code}"}
+                    return {
+                        "success": False,
+                        "message": f"Provider API error: HTTP {response.status_code}",
+                    }
             except Exception as e:
-                logger.debug("Groq Speech provider validation failed", error=str(e), exc_info=True)
-                return {"success": False, "message": f"Cannot connect to provider at {base_url} (see server logs)"}
-                
-        elif 'google_live' in provider_config or ('llm_model' in provider_config and 'gemini' in provider_config.get('llm_model', '')):
+                logger.debug(
+                    "Groq Speech provider validation failed",
+                    error=str(e),
+                    exc_info=True,
+                )
+                return {
+                    "success": False,
+                    "message": f"Cannot connect to provider at {base_url} (see server logs)",
+                }
+
+        elif "google_live" in provider_config or (
+            "llm_model" in provider_config
+            and "gemini" in provider_config.get("llm_model", "")
+        ):
             # Google Live
-            api_key = get_env_key('GOOGLE_API_KEY')
+            api_key = get_env_key("GOOGLE_API_KEY")
             if not api_key:
-                return {"success": False, "message": "GOOGLE_API_KEY not set in .env file"}
+                return {
+                    "success": False,
+                    "message": "GOOGLE_API_KEY not set in .env file",
+                }
             async with httpx.AsyncClient() as client:
                 response = await client.get(
                     f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}",
-                    timeout=10.0
+                    timeout=10.0,
                 )
                 if response.status_code == 200:
-                    return {"success": True, "message": f"Connected to Google API (HTTP {response.status_code})"}
-                return {"success": False, "message": f"Google API error: HTTP {response.status_code}"}
-                
-        elif 'ws_url' in provider_config:
+                    return {
+                        "success": True,
+                        "message": f"Connected to Google API (HTTP {response.status_code})",
+                    }
+                return {
+                    "success": False,
+                    "message": f"Google API error: HTTP {response.status_code}",
+                }
+
+        elif "ws_url" in provider_config:
             # Local provider (WebSocket)
-            ws_url = provider_config.get('ws_url', '')
+            ws_url = provider_config.get("ws_url", "")
             if not ws_url:
-                 return {"success": False, "message": "No WebSocket URL provided"}
-            
+                return {"success": False, "message": "No WebSocket URL provided"}
+
             try:
                 import websockets
+
                 # Try connecting to the WebSocket
                 async with websockets.connect(ws_url, open_timeout=5.0) as ws:
                     await ws.close()
-                return {"success": True, "message": "Local AI server is reachable via WebSocket"}
+                return {
+                    "success": True,
+                    "message": "Local AI server is reachable via WebSocket",
+                }
             except ImportError:
-                 return {"success": False, "message": "websockets library not installed"}
+                return {"success": False, "message": "websockets library not installed"}
             except Exception as e:
                 # If local-ai-server is on host network, ensure we use host.docker.internal or host networking properties
-                return {"success": False, "message": f"Cannot reach local AI server at {ws_url}. Error: {str(e)}"}
-        
+                return {
+                    "success": False,
+                    "message": f"Cannot reach local AI server at {ws_url}. Error: {str(e)}",
+                }
+
         # ============================================================
         # OLLAMA - Self-hosted LLM
         # ============================================================
-        if 'ollama' in provider_name or provider_config.get('type') == 'ollama':
+        if "ollama" in provider_name or provider_config.get("type") == "ollama":
             import aiohttp
-            base_url = provider_config.get('base_url', 'http://localhost:11434').rstrip('/')
+
+            base_url = provider_config.get("base_url", "http://localhost:11434").rstrip(
+                "/"
+            )
             try:
                 async with aiohttp.ClientSession() as session:
                     url = f"{base_url}/api/tags"
@@ -1364,71 +1840,120 @@ async def test_provider_connection(request: ProviderTestRequest):
                         if response.status == 200:
                             data = await response.json()
                             models = data.get("models", [])
-                            return {"success": True, "message": f"Connected to Ollama! Found {len(models)} models."}
+                            return {
+                                "success": True,
+                                "message": f"Connected to Ollama! Found {len(models)} models.",
+                            }
                         else:
-                            return {"success": False, "message": f"Ollama returned status {response.status}"}
+                            return {
+                                "success": False,
+                                "message": f"Ollama returned status {response.status}",
+                            }
             except aiohttp.ClientConnectorError:
-                return {"success": False, "message": f"Cannot connect to Ollama at {base_url}. Ensure Ollama is running and accessible."}
+                return {
+                    "success": False,
+                    "message": f"Cannot connect to Ollama at {base_url}. Ensure Ollama is running and accessible.",
+                }
             except asyncio.TimeoutError:
-                return {"success": False, "message": "Connection timeout - is Ollama running?"}
+                return {
+                    "success": False,
+                    "message": "Connection timeout - is Ollama running?",
+                }
             except Exception as e:
-                return {"success": False, "message": f"Ollama connection failed: {str(e)}"}
-                
-        elif 'model' in provider_config or 'stt_model' in provider_config or 'chat_model' in provider_config or 'tts_model' in provider_config:
+                return {
+                    "success": False,
+                    "message": f"Ollama connection failed: {str(e)}",
+                }
+
+        elif (
+            "model" in provider_config
+            or "stt_model" in provider_config
+            or "chat_model" in provider_config
+            or "tts_model" in provider_config
+        ):
             # Check if it's Deepgram or OpenAI standard
             # Deepgram often has 'deepgram' in name or model names like 'nova'
-            if provider_config.get('model', '').startswith('nova') or 'deepgram' in provider_name.lower():
+            if (
+                provider_config.get("model", "").startswith("nova")
+                or "deepgram" in provider_name.lower()
+            ):
                 # Deepgram
-                api_key = get_env_key('DEEPGRAM_API_KEY')
+                api_key = get_env_key("DEEPGRAM_API_KEY")
                 if not api_key:
-                    return {"success": False, "message": "DEEPGRAM_API_KEY not set in .env file"}
+                    return {
+                        "success": False,
+                        "message": "DEEPGRAM_API_KEY not set in .env file",
+                    }
                 async with httpx.AsyncClient() as client:
                     response = await client.get(
                         "https://api.deepgram.com/v1/projects",
                         headers={"Authorization": f"Token {api_key}"},
-                        timeout=10.0
+                        timeout=10.0,
                     )
                     if response.status_code == 200:
-                        return {"success": True, "message": f"Connected to Deepgram (HTTP {response.status_code})"}
-                    return {"success": False, "message": f"Deepgram API error: HTTP {response.status_code}"}
+                        return {
+                            "success": True,
+                            "message": f"Connected to Deepgram (HTTP {response.status_code})",
+                        }
+                    return {
+                        "success": False,
+                        "message": f"Deepgram API error: HTTP {response.status_code}",
+                    }
             else:
                 # OpenAI Standard or Generic
                 # Try OpenAI first
-                api_key = get_env_key('OPENAI_API_KEY')
+                api_key = get_env_key("OPENAI_API_KEY")
                 if api_key:
-                   async with httpx.AsyncClient() as client:
+                    async with httpx.AsyncClient() as client:
                         try:
                             response = await client.get(
                                 "https://api.openai.com/v1/models",
                                 headers={"Authorization": f"Bearer {api_key}"},
-                                timeout=5.0
+                                timeout=5.0,
                             )
                             if response.status_code == 200:
-                                return {"success": True, "message": f"Connected to OpenAI (HTTP {response.status_code})"}
+                                return {
+                                    "success": True,
+                                    "message": f"Connected to OpenAI (HTTP {response.status_code})",
+                                }
                         except:
                             pass
-                
+
                 # If we are here, it might be a local provider using 'model' key (e.g. local_tts)
-                # but without ws_url? Usually local providers have ws_url. 
+                # but without ws_url? Usually local providers have ws_url.
                 # If it's pure local without WS (e.g. wrapper), assume success if file paths exist?
-                return {"success": True, "message": "Provider configuration valid (No specific connection test available)"}
-        
+                return {
+                    "success": True,
+                    "message": "Provider configuration valid (No specific connection test available)",
+                }
+
         # ============================================================
         # AZURE SPEECH SERVICE (STT / TTS)
         # ============================================================
-        if provider_config.get('type') == 'azure' or 'azure' in provider_name:
-            api_key = get_env_key('AZURE_SPEECH_KEY') or os.getenv('AZURE_SPEECH_KEY') or ''
+        if provider_config.get("type") == "azure" or "azure" in provider_name:
+            api_key = (
+                get_env_key("AZURE_SPEECH_KEY") or os.getenv("AZURE_SPEECH_KEY") or ""
+            )
             if not api_key:
-                return {"success": False, "message": "AZURE_SPEECH_KEY not set in .env file"}
-            region = provider_config.get('region', 'eastus')
+                return {
+                    "success": False,
+                    "message": "AZURE_SPEECH_KEY not set in .env file",
+                }
+            region = provider_config.get("region", "eastus")
             # Validate region to prevent SSRF via crafted region values
             import re
+
             _azure_region_re = re.compile(r"^[a-z][a-z0-9-]{0,48}[a-z0-9]$")
             region = str(region).strip().lower()
             if not region or not _azure_region_re.match(region):
-                return {"success": False, "message": f"Invalid Azure region '{region}'. Expected lowercase alphanumeric (e.g. 'eastus')."}
+                return {
+                    "success": False,
+                    "message": f"Invalid Azure region '{region}'. Expected lowercase alphanumeric (e.g. 'eastus').",
+                }
             # Hit the token endpoint — a 200 or 400 response proves the key is recognized
-            token_url = f"https://{region}.api.cognitive.microsoft.com/sts/v1.0/issueToken"
+            token_url = (
+                f"https://{region}.api.cognitive.microsoft.com/sts/v1.0/issueToken"
+            )
             try:
                 async with httpx.AsyncClient() as client:
                     response = await client.post(
@@ -1437,22 +1962,43 @@ async def test_provider_connection(request: ProviderTestRequest):
                         timeout=10.0,
                     )
                     if response.status_code == 200:
-                        capabilities = provider_config.get('capabilities', [])
-                        cap_str = '/'.join(str(c).upper() for c in capabilities) if capabilities else 'Speech'
-                        return {"success": True, "message": f"Connected to Azure Speech Service ({region}). {cap_str} key valid."}
+                        capabilities = provider_config.get("capabilities", [])
+                        cap_str = (
+                            "/".join(str(c).upper() for c in capabilities)
+                            if capabilities
+                            else "Speech"
+                        )
+                        return {
+                            "success": True,
+                            "message": f"Connected to Azure Speech Service ({region}). {cap_str} key valid.",
+                        }
                     if response.status_code == 401:
-                        return {"success": False, "message": "Invalid AZURE_SPEECH_KEY (401 Unauthorized)"}
-                    return {"success": False, "message": f"Azure Speech API returned HTTP {response.status_code} for region '{region}'"}
+                        return {
+                            "success": False,
+                            "message": "Invalid AZURE_SPEECH_KEY (401 Unauthorized)",
+                        }
+                    return {
+                        "success": False,
+                        "message": f"Azure Speech API returned HTTP {response.status_code} for region '{region}'",
+                    }
             except Exception as e:
-                logger.debug("Azure Speech provider validation failed", error=str(e), exc_info=True)
-                return {"success": False, "message": f"Cannot connect to Azure Speech Service at region '{region}' (see server logs)"}
+                logger.debug(
+                    "Azure Speech provider validation failed",
+                    error=str(e),
+                    exc_info=True,
+                )
+                return {
+                    "success": False,
+                    "message": f"Cannot connect to Azure Speech Service at region '{region}' (see server logs)",
+                }
 
         return {"success": False, "message": "Unknown provider type - cannot test"}
-        
+
     except httpx.TimeoutException:
         return {"success": False, "message": "Connection timeout"}
     except Exception as e:
         return {"success": False, "message": f"Test failed: {str(e)}"}
+
 
 @router.get("/export")
 async def export_configuration():
@@ -1461,33 +2007,36 @@ async def export_configuration():
         import zipfile
         import io
         from datetime import datetime
-        
+
         # Create ZIP in memory
         zip_buffer = io.BytesIO()
-        
-        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
             # Add YAML config (base + local override)
             if os.path.exists(settings.CONFIG_PATH):
-                zip_file.write(settings.CONFIG_PATH, 'ai-agent.yaml')
+                zip_file.write(settings.CONFIG_PATH, "ai-agent.yaml")
             if os.path.exists(settings.LOCAL_CONFIG_PATH):
-                zip_file.write(settings.LOCAL_CONFIG_PATH, 'ai-agent.local.yaml')
-            
+                zip_file.write(settings.LOCAL_CONFIG_PATH, "ai-agent.local.yaml")
+
             # Add ENV file
             if os.path.exists(settings.ENV_PATH):
-                zip_file.write(settings.ENV_PATH, '.env')
-            
+                zip_file.write(settings.ENV_PATH, ".env")
+
             # Add timestamp file
             timestamp = datetime.now().isoformat()
-            zip_file.writestr('backup_info.txt', f'Backup created: {timestamp}\n')
-        
+            zip_file.writestr("backup_info.txt", f"Backup created: {timestamp}\n")
+
         zip_buffer.seek(0)
-        
+
         # Return as downloadable file
         from fastapi.responses import StreamingResponse
+
         return StreamingResponse(
-            zip_buffer, 
+            zip_buffer,
             media_type="application/zip",
-            headers={"Content-Disposition": f"attachment; filename=config-backup-{datetime.now().strftime('%Y%m%d-%H%M%S')}.zip"}
+            headers={
+                "Content-Disposition": f"attachment; filename=config-backup-{datetime.now().strftime('%Y%m%d-%H%M%S')}.zip"
+            },
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -1504,41 +2053,111 @@ async def test_smtp_settings(req: SmtpTestRequest):
     try:
         from dotenv import dotenv_values
     except Exception as e:
-        raise HTTPException(status_code=500, detail="python-dotenv is required for SMTP test") from e
+        raise HTTPException(
+            status_code=500, detail="python-dotenv is required for SMTP test"
+        ) from e
 
     if not (req.to_email or "").strip():
         raise HTTPException(status_code=400, detail="to_email is required")
 
-    env_map = dotenv_values(settings.ENV_PATH) if os.path.exists(settings.ENV_PATH) else {}
+    env_map = (
+        dotenv_values(settings.ENV_PATH) if os.path.exists(settings.ENV_PATH) else {}
+    )
 
-    host = str((req.smtp_host if req.smtp_host is not None else (env_map or {}).get("SMTP_HOST")) or "").strip()
+    host = str(
+        (
+            req.smtp_host
+            if req.smtp_host is not None
+            else (env_map or {}).get("SMTP_HOST")
+        )
+        or ""
+    ).strip()
     if not host:
-        raise HTTPException(status_code=400, detail="SMTP_HOST is not set (save it in .env or pass smtp_host)")
+        raise HTTPException(
+            status_code=400,
+            detail="SMTP_HOST is not set (save it in .env or pass smtp_host)",
+        )
 
-    tls_mode = str((req.smtp_tls_mode if req.smtp_tls_mode is not None else (env_map or {}).get("SMTP_TLS_MODE")) or "starttls").strip().lower()
+    tls_mode = (
+        str(
+            (
+                req.smtp_tls_mode
+                if req.smtp_tls_mode is not None
+                else (env_map or {}).get("SMTP_TLS_MODE")
+            )
+            or "starttls"
+        )
+        .strip()
+        .lower()
+    )
     if tls_mode not in {"starttls", "smtps", "none"}:
-        raise HTTPException(status_code=400, detail="SMTP_TLS_MODE must be starttls, smtps, or none")
+        raise HTTPException(
+            status_code=400, detail="SMTP_TLS_MODE must be starttls, smtps, or none"
+        )
 
-    port_raw = str((req.smtp_port if req.smtp_port is not None else (env_map or {}).get("SMTP_PORT")) or "").strip()
+    port_raw = str(
+        (
+            req.smtp_port
+            if req.smtp_port is not None
+            else (env_map or {}).get("SMTP_PORT")
+        )
+        or ""
+    ).strip()
     try:
         port = int(port_raw) if port_raw else (465 if tls_mode == "smtps" else 587)
     except Exception:
         raise HTTPException(status_code=400, detail="SMTP_PORT must be an integer")
 
-    username = str((req.smtp_username if req.smtp_username is not None else (env_map or {}).get("SMTP_USERNAME")) or "").strip() or None
-    password = str((req.smtp_password if req.smtp_password is not None else (env_map or {}).get("SMTP_PASSWORD")) or "").strip() or None
+    username = (
+        str(
+            (
+                req.smtp_username
+                if req.smtp_username is not None
+                else (env_map or {}).get("SMTP_USERNAME")
+            )
+            or ""
+        ).strip()
+        or None
+    )
+    password = (
+        str(
+            (
+                req.smtp_password
+                if req.smtp_password is not None
+                else (env_map or {}).get("SMTP_PASSWORD")
+            )
+            or ""
+        ).strip()
+        or None
+    )
 
-    timeout_raw = str((req.smtp_timeout_seconds if req.smtp_timeout_seconds is not None else (env_map or {}).get("SMTP_TIMEOUT_SECONDS")) or "10").strip()
+    timeout_raw = str(
+        (
+            req.smtp_timeout_seconds
+            if req.smtp_timeout_seconds is not None
+            else (env_map or {}).get("SMTP_TIMEOUT_SECONDS")
+        )
+        or "10"
+    ).strip()
     try:
         timeout_s = float(timeout_raw or "10")
     except Exception:
         timeout_s = 10.0
 
-    tls_verify_raw = req.smtp_tls_verify if req.smtp_tls_verify is not None else (env_map or {}).get("SMTP_TLS_VERIFY")
+    tls_verify_raw = (
+        req.smtp_tls_verify
+        if req.smtp_tls_verify is not None
+        else (env_map or {}).get("SMTP_TLS_VERIFY")
+    )
     if isinstance(tls_verify_raw, bool):
         tls_verify = tls_verify_raw
     else:
-        tls_verify = str(tls_verify_raw or "true").strip().lower() in {"1", "true", "yes", "on"}
+        tls_verify = str(tls_verify_raw or "true").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
     context = ssl.create_default_context()
     if not tls_verify:
         context.check_hostname = False
@@ -1547,7 +2166,7 @@ async def test_smtp_settings(req: SmtpTestRequest):
     from_email = (req.from_email or "").strip()
     if not from_email:
         # Best-effort default: many SMTP servers expect From to match the authenticated mailbox.
-        from_email = (username or "test@localhost")
+        from_email = username or "test@localhost"
 
     subject = (req.subject or "").strip() or "Asterisk AI Voice Agent - SMTP Test"
     text = (req.text or "").strip() or (
@@ -1563,7 +2182,9 @@ async def test_smtp_settings(req: SmtpTestRequest):
 
     def _send_sync() -> None:
         if tls_mode == "smtps":
-            with smtplib.SMTP_SSL(host=host, port=port, timeout=timeout_s, context=context) as smtp:
+            with smtplib.SMTP_SSL(
+                host=host, port=port, timeout=timeout_s, context=context
+            ) as smtp:
                 smtp.ehlo()
                 if username and password:
                     smtp.login(username, password)
@@ -1593,6 +2214,7 @@ async def test_smtp_settings(req: SmtpTestRequest):
         # Do not echo secrets; only return the error string.
         raise HTTPException(status_code=500, detail=f"SMTP test failed: {str(e)}")
 
+
 @router.get("/export-logs")
 async def export_logs():
     """Export logs and sanitized configuration for troubleshooting"""
@@ -1602,28 +2224,46 @@ async def export_logs():
         import glob
         from datetime import datetime
         import subprocess
-        
+
         # Create ZIP in memory
         zip_buffer = io.BytesIO()
-        
-        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
             # 1. Sanitized YAML (merged base + local override)
             try:
                 import yaml
+
                 parsed = _read_merged_config_dict()
 
                 import re
-                email_pattern = re.compile(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}')
+
+                email_pattern = re.compile(
+                    r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
+                )
                 # Pattern for hostnames that look like internal infrastructure
-                hostname_pattern = re.compile(r'\b(?:pbx|sip|voip|trunk|asterisk)[a-zA-Z0-9.-]*\.[a-zA-Z]{2,}\b', re.IGNORECASE)
-                
+                hostname_pattern = re.compile(
+                    r"\b(?:pbx|sip|voip|trunk|asterisk)[a-zA-Z0-9.-]*\.[a-zA-Z]{2,}\b",
+                    re.IGNORECASE,
+                )
+
                 def redact(obj):
                     if isinstance(obj, dict):
                         out = {}
                         for k, v in obj.items():
                             key = str(k).lower()
                             # Redact sensitive keys
-                            if any(s in key for s in ["api_key", "apikey", "token", "secret", "password", "pass", "key"]):
+                            if any(
+                                s in key
+                                for s in [
+                                    "api_key",
+                                    "apikey",
+                                    "token",
+                                    "secret",
+                                    "password",
+                                    "pass",
+                                    "key",
+                                ]
+                            ):
                                 out[k] = "[REDACTED]"
                             # Redact email fields
                             elif "email" in key:
@@ -1635,32 +2275,34 @@ async def export_logs():
                         return [redact(v) for v in obj]
                     # Redact email addresses and sensitive hostnames in string values
                     if isinstance(obj, str):
-                        result = email_pattern.sub('[EMAIL_REDACTED]', obj)
-                        result = hostname_pattern.sub('[HOSTNAME_REDACTED]', result)
+                        result = email_pattern.sub("[EMAIL_REDACTED]", obj)
+                        result = hostname_pattern.sub("[HOSTNAME_REDACTED]", result)
                         return result
                     return obj
 
                 if parsed:
                     redacted = redact(parsed)
                     zip_file.writestr(
-                        'ai-agent-sanitized.yaml',
-                        yaml.safe_dump(redacted, sort_keys=False, default_flow_style=False),
+                        "ai-agent-sanitized.yaml",
+                        yaml.safe_dump(
+                            redacted, sort_keys=False, default_flow_style=False
+                        ),
                     )
             except Exception:
                 # Fallback: write raw base if sanitization fails
                 if os.path.exists(settings.CONFIG_PATH):
-                    with open(settings.CONFIG_PATH, 'r') as f:
-                        zip_file.writestr('ai-agent-sanitized.yaml', f.read())
-            
+                    with open(settings.CONFIG_PATH, "r") as f:
+                        zip_file.writestr("ai-agent-sanitized.yaml", f.read())
+
             # 2. Sanitized ENV (Just keys, no values)
             if os.path.exists(settings.ENV_PATH):
                 env_keys = []
-                with open(settings.ENV_PATH, 'r') as f:
+                with open(settings.ENV_PATH, "r") as f:
                     for line in f:
-                        if '=' in line and not line.startswith('#'):
-                            key = line.split('=')[0].strip()
+                        if "=" in line and not line.startswith("#"):
+                            key = line.split("=")[0].strip()
                             env_keys.append(f"{key}=[REDACTED]")
-                zip_file.writestr('.env.sanitized', '\n'.join(env_keys))
+                zip_file.writestr(".env.sanitized", "\n".join(env_keys))
 
             # 2b. Host OS info (if mounted) and basic Docker versions
             for os_release in ("/host/etc/os-release", "/etc/os-release"):
@@ -1674,8 +2316,12 @@ async def export_logs():
 
             def add_cmd(name: str, cmd: list):
                 try:
-                    result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-                    content = (result.stdout or "") + ("\n" + result.stderr if result.stderr else "")
+                    result = subprocess.run(
+                        cmd, capture_output=True, text=True, timeout=10
+                    )
+                    content = (result.stdout or "") + (
+                        "\n" + result.stderr if result.stderr else ""
+                    )
                     zip_file.writestr(name, content.strip() + "\n")
                 except Exception as e:
                     zip_file.writestr(name, f"Failed to run {cmd}: {e}\n")
@@ -1683,55 +2329,81 @@ async def export_logs():
             add_cmd("docker-version.txt", ["docker", "version"])
             add_cmd("docker-compose-version.txt", ["docker", "compose", "version"])
             add_cmd("docker-ps.txt", ["docker", "ps", "-a"])
-            
+
             # 3. Logs from Docker Containers
             try:
                 import docker
+
                 client = docker.from_env()
-                containers_to_log = ['ai_engine', 'local_ai_server', 'admin_ui']
-                
+                containers_to_log = ["ai_engine", "local_ai_server", "admin_ui"]
+
                 found_logs = False
                 for container_name in containers_to_log:
                     try:
                         container = client.containers.get(container_name)
                         # Capture full logs (no tail limit)
-                        logs = container.logs().decode('utf-8', errors='replace')
+                        logs = container.logs().decode("utf-8", errors="replace")
                         if logs:
                             # Strip ANSI escape codes for clean log files
                             clean_logs = strip_ansi_codes(logs)
                             # Redact sensitive information for privacy (AAVA-162)
                             import re
+
                             # Email addresses
-                            clean_logs = re.sub(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', '[EMAIL_REDACTED]', clean_logs)
+                            clean_logs = re.sub(
+                                r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}",
+                                "[EMAIL_REDACTED]",
+                                clean_logs,
+                            )
                             # PBX/SIP/VoIP hostnames (likely internal infrastructure)
-                            clean_logs = re.sub(r'\b(?:pbx|sip|voip|trunk|asterisk)[a-zA-Z0-9.-]*\.[a-zA-Z]{2,}\b', '[HOSTNAME_REDACTED]', clean_logs, flags=re.IGNORECASE)
+                            clean_logs = re.sub(
+                                r"\b(?:pbx|sip|voip|trunk|asterisk)[a-zA-Z0-9.-]*\.[a-zA-Z]{2,}\b",
+                                "[HOSTNAME_REDACTED]",
+                                clean_logs,
+                                flags=re.IGNORECASE,
+                            )
                             # API key previews (e.g., api_key_preview=AIzaSyB2..._H_M)
-                            clean_logs = re.sub(r'(api_key_preview=)[^\s\]]+', r'\1[REDACTED]', clean_logs)
-                            zip_file.writestr(f'{container_name}.log', clean_logs)
+                            clean_logs = re.sub(
+                                r"(api_key_preview=)[^\s\]]+",
+                                r"\1[REDACTED]",
+                                clean_logs,
+                            )
+                            zip_file.writestr(f"{container_name}.log", clean_logs)
                             found_logs = True
                     except Exception as e:
-                        zip_file.writestr(f'{container_name}_error.txt', f"Could not fetch logs: {str(e)}")
-                
+                        zip_file.writestr(
+                            f"{container_name}_error.txt",
+                            f"Could not fetch logs: {str(e)}",
+                        )
+
                 if not found_logs:
-                    zip_file.writestr('logs_info.txt', 'No logs retrieved from containers.')
+                    zip_file.writestr(
+                        "logs_info.txt", "No logs retrieved from containers."
+                    )
 
             except Exception as e:
-                 zip_file.writestr('docker_error.txt', f"Failed to connect to Docker API: {str(e)}")
+                zip_file.writestr(
+                    "docker_error.txt", f"Failed to connect to Docker API: {str(e)}"
+                )
 
             # Add timestamp
             timestamp = datetime.now().isoformat()
-            zip_file.writestr('export_info.txt', f'Debug export created: {timestamp}\n')
-        
+            zip_file.writestr("export_info.txt", f"Debug export created: {timestamp}\n")
+
         zip_buffer.seek(0)
-        
+
         from fastapi.responses import StreamingResponse
+
         return StreamingResponse(
-            zip_buffer, 
+            zip_buffer,
             media_type="application/zip",
-            headers={"Content-Disposition": f"attachment; filename=debug-logs-{datetime.now().strftime('%Y%m%d-%H%M%S')}.zip"}
+            headers={
+                "Content-Disposition": f"attachment; filename=debug-logs-{datetime.now().strftime('%Y%m%d-%H%M%S')}.zip"
+            },
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.post("/import")
 async def import_configuration(file: UploadFile = File(...)):
@@ -1741,45 +2413,54 @@ async def import_configuration(file: UploadFile = File(...)):
         import io
         import shutil
         import datetime
-        
+
         content = await file.read()
         zip_buffer = io.BytesIO(content)
-        
+
         if not zipfile.is_zipfile(zip_buffer):
-             raise HTTPException(status_code=400, detail="Invalid file format. Must be a ZIP file.")
-        
+            raise HTTPException(
+                status_code=400, detail="Invalid file format. Must be a ZIP file."
+            )
+
         # Create backups of current config
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        
+
         if os.path.exists(settings.LOCAL_CONFIG_PATH):
             backup_path = f"{settings.LOCAL_CONFIG_PATH}.bak.{timestamp}"
             shutil.copy2(settings.LOCAL_CONFIG_PATH, backup_path)
-            
+
         if os.path.exists(settings.ENV_PATH):
             backup_path = f"{settings.ENV_PATH}.bak.{timestamp}"
             shutil.copy2(settings.ENV_PATH, backup_path)
-        
-        with zipfile.ZipFile(zip_buffer, 'r') as zip_ref:
+
+        with zipfile.ZipFile(zip_buffer, "r") as zip_ref:
             # Check contents
             file_names = zip_ref.namelist()
-            if 'ai-agent.yaml' not in file_names and 'ai-agent.local.yaml' not in file_names and '.env' not in file_names:
-                raise HTTPException(status_code=400, detail="ZIP must contain ai-agent.yaml, ai-agent.local.yaml, or .env")
-            
+            if (
+                "ai-agent.yaml" not in file_names
+                and "ai-agent.local.yaml" not in file_names
+                and ".env" not in file_names
+            ):
+                raise HTTPException(
+                    status_code=400,
+                    detail="ZIP must contain ai-agent.yaml, ai-agent.local.yaml, or .env",
+                )
+
             # Extract: imported ai-agent.yaml content goes to the LOCAL override
             # so the git-tracked base stays clean.
-            if 'ai-agent.local.yaml' in file_names:
-                with open(settings.LOCAL_CONFIG_PATH, 'wb') as f:
-                    f.write(zip_ref.read('ai-agent.local.yaml'))
-            elif 'ai-agent.yaml' in file_names:
-                with open(settings.LOCAL_CONFIG_PATH, 'wb') as f:
-                    f.write(zip_ref.read('ai-agent.yaml'))
-                    
-            if '.env' in file_names:
-                with open(settings.ENV_PATH, 'wb') as f:
-                    f.write(zip_ref.read('.env'))
-                    
+            if "ai-agent.local.yaml" in file_names:
+                with open(settings.LOCAL_CONFIG_PATH, "wb") as f:
+                    f.write(zip_ref.read("ai-agent.local.yaml"))
+            elif "ai-agent.yaml" in file_names:
+                with open(settings.LOCAL_CONFIG_PATH, "wb") as f:
+                    f.write(zip_ref.read("ai-agent.yaml"))
+
+            if ".env" in file_names:
+                with open(settings.ENV_PATH, "wb") as f:
+                    f.write(zip_ref.read(".env"))
+
         return {"success": True, "message": "Configuration imported successfully."}
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -1802,7 +2483,7 @@ def update_yaml_provider_field(provider_name: str, field: str, value: Any) -> bo
         if not merged_config:
             return False
 
-        providers = merged_config.get('providers')
+        providers = merged_config.get("providers")
         if not isinstance(providers, dict):
             providers = {}
         provider_block = providers.get(provider_name)
@@ -1815,11 +2496,13 @@ def update_yaml_provider_field(provider_name: str, field: str, value: Any) -> bo
             provider_block[field] = value
 
         providers[provider_name] = provider_block
-        merged_config['providers'] = providers
+        merged_config["providers"] = providers
 
         # Validate the fully-merged config, then persist only minimal local override
         # so base defaults can continue to evolve across releases.
-        merged_content = yaml.dump(merged_config, default_flow_style=False, sort_keys=False)
+        merged_content = yaml.dump(
+            merged_config, default_flow_style=False, sort_keys=False
+        )
 
         # Validate before writing
         _validate_ai_agent_config(merged_content)
@@ -1837,31 +2520,62 @@ def update_yaml_provider_field(provider_name: str, field: str, value: Any) -> bo
 
 
 @router.get("/options/{provider_type}")
-
 async def get_provider_options(provider_type: str):
     """Get available options (models, voices) for a specific provider."""
-    
+
     # Common catalogs
     DEEPGRAM_MODELS = [
-        {"id": "nova-2", "name": "Nova 2 (General)", "cost": "Low", "latency": "Ultra Low"},
-        {"id": "nova-2-phonecall", "name": "Nova 2 (Phonecall)", "cost": "Low", "latency": "Ultra Low"},
-        {"id": "nova-2-medical", "name": "Nova 2 (Medical)", "cost": "Low", "latency": "Ultra Low"},
-        {"id": "nova-2-meeting", "name": "Nova 2 (Meeting)", "cost": "Low", "latency": "Ultra Low"},
-        {"id": "nova-2-general", "name": "Nova 2 (General Legacy)", "cost": "Low", "latency": "Ultra Low"},
-        {"id": "listen", "name": "General (Listen)", "cost": "Medium", "latency": "Low"},
+        {
+            "id": "nova-2",
+            "name": "Nova 2 (General)",
+            "cost": "Low",
+            "latency": "Ultra Low",
+        },
+        {
+            "id": "nova-2-phonecall",
+            "name": "Nova 2 (Phonecall)",
+            "cost": "Low",
+            "latency": "Ultra Low",
+        },
+        {
+            "id": "nova-2-medical",
+            "name": "Nova 2 (Medical)",
+            "cost": "Low",
+            "latency": "Ultra Low",
+        },
+        {
+            "id": "nova-2-meeting",
+            "name": "Nova 2 (Meeting)",
+            "cost": "Low",
+            "latency": "Ultra Low",
+        },
+        {
+            "id": "nova-2-general",
+            "name": "Nova 2 (General Legacy)",
+            "cost": "Low",
+            "latency": "Ultra Low",
+        },
+        {
+            "id": "listen",
+            "name": "General (Listen)",
+            "cost": "Medium",
+            "latency": "Low",
+        },
     ]
-    
+
     OPENAI_LLM_MODELS = [
         {"id": "gpt-4o", "name": "GPT-4o (Omni)", "description": "Most capable"},
         {"id": "gpt-4o-mini", "name": "GPT-4o Mini", "description": "Fast & Cheap"},
-        {"id": "gpt-4-turbo", "name": "GPT-4 Turbo", "description": "High intelligence"},
+        {
+            "id": "gpt-4-turbo",
+            "name": "GPT-4 Turbo",
+            "description": "High intelligence",
+        },
         {"id": "gpt-3.5-turbo", "name": "GPT-3.5 Turbo", "description": "Legacy fast"},
     ]
-    
-    OPENAI_STT_MODELS = [
-        {"id": "whisper-1", "name": "Whisper V1"}
-    ]
-    
+
+    OPENAI_STT_MODELS = [{"id": "whisper-1", "name": "Whisper V1"}]
+
     GOOGLE_MODELS = [
         {"id": "gemini-1.5-flash", "name": "Gemini 1.5 Flash (Fastest)"},
         {"id": "gemini-1.5-pro", "name": "Gemini 1.5 Pro (Best Quality)"},
@@ -1879,32 +2593,32 @@ async def get_provider_options(provider_type: str):
     # Return options based on provider
     if provider_type == "deepgram":
         return {"models": DEEPGRAM_MODELS}
-        
+
     elif provider_type == "openai":
         return {
             "stt_models": OPENAI_STT_MODELS,
             "llm_models": OPENAI_LLM_MODELS,
-            "tts_models": [{"id": "tts-1", "name": "TTS-1"}, {"id": "tts-1-hd", "name": "TTS-1 HD"}]
+            "tts_models": [
+                {"id": "tts-1", "name": "TTS-1"},
+                {"id": "tts-1-hd", "name": "TTS-1 HD"},
+            ],
         }
-        
+
     elif provider_type == "google":
-        return {
-            "models": GOOGLE_MODELS,
-            "voices": GOOGLE_VOICES
-        }
-        
+        return {"models": GOOGLE_MODELS, "voices": GOOGLE_VOICES}
+
     elif provider_type == "elevenlabs":
         return {
             "models": [
                 {"id": "eleven_turbo_v2_5", "name": "Turbo v2.5"},
                 {"id": "eleven_multilingual_v2", "name": "Multilingual v2"},
-                {"id": "eleven_monolingual_v1", "name": "Monolingual v1"}
+                {"id": "eleven_monolingual_v1", "name": "Monolingual v1"},
             ]
         }
-        
+
     elif provider_type == "local":
         return {"message": "Use /api/local-ai/models for dynamic local models"}
-        
+
     return {"error": "Unknown provider type"}
 
 
@@ -1941,7 +2655,7 @@ async def get_vertex_regions():
 async def get_vertex_credentials_status():
     """Check if Vertex AI credentials are uploaded and return metadata."""
     import json
-    
+
     if not os.path.exists(VERTEX_CREDENTIALS_PATH):
         return {
             "uploaded": False,
@@ -1950,12 +2664,12 @@ async def get_vertex_credentials_status():
             "client_email": None,
             "uploaded_at": None,
         }
-    
+
     try:
         stat = os.stat(VERTEX_CREDENTIALS_PATH)
-        with open(VERTEX_CREDENTIALS_PATH, 'r') as f:
+        with open(VERTEX_CREDENTIALS_PATH, "r") as f:
             creds = json.load(f)
-        
+
         return {
             "uploaded": True,
             "filename": "gcp-service-account.json",
@@ -1978,56 +2692,61 @@ async def get_vertex_credentials_status():
 async def upload_vertex_credentials(file: UploadFile = File(...)):
     """Upload a GCP service account JSON file for Vertex AI authentication."""
     import json
-    
-    if not file.filename or not file.filename.endswith('.json'):
+
+    if not file.filename or not file.filename.endswith(".json"):
         raise HTTPException(status_code=400, detail="File must be a JSON file")
-    
+
     try:
         content = await file.read()
         # Validate JSON structure
         creds = json.loads(content)
-        
+
         required_fields = ["type", "project_id", "private_key", "client_email"]
         missing = [f for f in required_fields if f not in creds]
         if missing:
             raise HTTPException(
-                status_code=400, 
-                detail=f"Invalid service account JSON. Missing fields: {', '.join(missing)}"
+                status_code=400,
+                detail=f"Invalid service account JSON. Missing fields: {', '.join(missing)}",
             )
-        
+
         if creds.get("type") != "service_account":
             raise HTTPException(
                 status_code=400,
-                detail="JSON file must be a service account key (type: service_account)"
+                detail="JSON file must be a service account key (type: service_account)",
             )
-        
+
         # Ensure directory exists
         os.makedirs(os.path.dirname(VERTEX_CREDENTIALS_PATH), exist_ok=True)
-        
+
         # Write atomically
         temp_path = VERTEX_CREDENTIALS_PATH + ".tmp"
-        with open(temp_path, 'wb') as f:
+        with open(temp_path, "wb") as f:
             f.write(content)
         os.chmod(temp_path, 0o600)  # Restrict permissions
         os.replace(temp_path, VERTEX_CREDENTIALS_PATH)
-        
+
         # Auto-upsert GOOGLE_APPLICATION_CREDENTIALS in .env so the env var
         # persists across container recreates.  The container mount path is
         # /app/project/secrets/gcp-service-account.json (see docker-compose.yml).
         try:
-            _upsert_env_key("GOOGLE_APPLICATION_CREDENTIALS", "/app/project/secrets/gcp-service-account.json")
+            _upsert_env_key(
+                "GOOGLE_APPLICATION_CREDENTIALS",
+                "/app/project/secrets/gcp-service-account.json",
+            )
         except Exception:
             logger.warning("Could not auto-set GOOGLE_APPLICATION_CREDENTIALS in .env")
 
-        logger.info(f"Vertex AI credentials uploaded: project={creds.get('project_id')}")
-        
+        logger.info(
+            f"Vertex AI credentials uploaded: project={creds.get('project_id')}"
+        )
+
         return {
             "status": "success",
             "message": "Service account JSON uploaded successfully",
             "project_id": creds.get("project_id"),
             "client_email": creds.get("client_email"),
         }
-        
+
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="Invalid JSON file")
     except HTTPException:
@@ -2042,7 +2761,7 @@ async def delete_vertex_credentials():
     """Delete the uploaded Vertex AI credentials file."""
     if not os.path.exists(VERTEX_CREDENTIALS_PATH):
         raise HTTPException(status_code=404, detail="No credentials file found")
-    
+
     try:
         os.remove(VERTEX_CREDENTIALS_PATH)
         logger.info("Vertex AI credentials deleted")
@@ -2056,46 +2775,48 @@ async def delete_vertex_credentials():
 async def verify_vertex_credentials():
     """Verify Vertex AI credentials by attempting to get an access token."""
     import json
-    
+
     if not os.path.exists(VERTEX_CREDENTIALS_PATH):
         raise HTTPException(status_code=400, detail="No credentials file uploaded")
-    
+
     try:
         # Try to use google-auth to verify credentials
         import asyncio
         from google.oauth2 import service_account
         from google.auth.transport.requests import Request
-        
+
         def _refresh_credentials():
             """Blocking credential refresh - run in thread to avoid blocking event loop."""
             creds = service_account.Credentials.from_service_account_file(
                 VERTEX_CREDENTIALS_PATH,
-                scopes=["https://www.googleapis.com/auth/cloud-platform"]
+                scopes=["https://www.googleapis.com/auth/cloud-platform"],
             )
             creds.refresh(Request())
             return creds
-        
+
         # Run blocking credential refresh in thread pool
         credentials = await asyncio.to_thread(_refresh_credentials)
-        
+
         # Read project info
-        with open(VERTEX_CREDENTIALS_PATH, 'r') as f:
+        with open(VERTEX_CREDENTIALS_PATH, "r") as f:
             creds_data = json.load(f)
-        
+
         return {
             "status": "success",
             "message": "Credentials verified successfully",
             "project_id": creds_data.get("project_id"),
             "client_email": creds_data.get("client_email"),
-            "token_expiry": credentials.expiry.isoformat() if credentials.expiry else None,
+            "token_expiry": credentials.expiry.isoformat()
+            if credentials.expiry
+            else None,
         }
-        
+
     except ImportError:
         # google-auth not installed in admin_ui - just validate JSON structure
         try:
-            with open(VERTEX_CREDENTIALS_PATH, 'r') as f:
+            with open(VERTEX_CREDENTIALS_PATH, "r") as f:
                 creds_data = json.load(f)
-            
+
             required = ["type", "project_id", "private_key", "client_email"]
             if all(k in creds_data for k in required):
                 return {
@@ -2106,10 +2827,16 @@ async def verify_vertex_credentials():
                     "warning": "Install google-auth for full token verification",
                 }
             else:
-                raise HTTPException(status_code=400, detail="Invalid credentials structure")
+                raise HTTPException(
+                    status_code=400, detail="Invalid credentials structure"
+                )
         except json.JSONDecodeError:
-            raise HTTPException(status_code=400, detail="Invalid JSON in credentials file")
-            
+            raise HTTPException(
+                status_code=400, detail="Invalid JSON in credentials file"
+            )
+
     except Exception as e:
         logger.error(f"Error verifying Vertex AI credentials: {e}")
-        raise HTTPException(status_code=400, detail="Verification failed - check credentials are valid")
+        raise HTTPException(
+            status_code=400, detail="Verification failed - check credentials are valid"
+        )
