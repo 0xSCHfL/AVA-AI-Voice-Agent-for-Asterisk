@@ -131,6 +131,27 @@ export const FormInput = React.forwardRef<HTMLInputElement, InputProps>(
     )
 );
 
+interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
+    label?: string;
+    tooltip?: string;
+    error?: string;
+}
+
+export const FormTextarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
+    ({ label, tooltip, error, className = '', ...props }, ref) => (
+        <div className="mb-4">
+            {label && <FormLabel htmlFor={props.id} tooltip={tooltip}>{label}</FormLabel>}
+            <textarea
+                ref={ref}
+                className={`flex w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 ${error ? 'border-destructive' : ''} ${className}`}
+                rows={props.rows || 3}
+                {...props}
+            />
+            {error && <p className="text-xs text-destructive mt-1">{error}</p>}
+        </div>
+    )
+);
+
 interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
     label?: string;
     tooltip?: string;

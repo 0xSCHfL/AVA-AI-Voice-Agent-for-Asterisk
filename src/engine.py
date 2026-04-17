@@ -384,6 +384,10 @@ class Engine:
             contexts=list(self.transport_orchestrator.contexts.keys()),
             default=self.transport_orchestrator.default_profile_name,
         )
+
+        # Workflow engine for structured conversation flows
+        from .core.workflow_loader import WorkflowLoader
+        self.workflow_loader = WorkflowLoader(config.dict() if hasattr(config, 'dict') else config.__dict__)
         
         # Provider templates are safe to use for readiness/capability inspection, but
         # MUST NOT be used for per-call sessions (providers keep call-specific state).
@@ -13001,6 +13005,70 @@ class Engine:
                     )
             except Exception:
                 logger.debug("Pre-call tool execution failed", call_id=call_id, exc_info=True)
+
+            # Workflow: structured conversation flow (runs before provider session)
+            # Skip if pipeline mode is already active for this call
+            workflow_name = None
+            if not getattr(session, "pipeline_name", None):
+                try:
+                    if session and getattr(session, "context_name", None):
+                        ctx_cfg = self.transport_orchestrator.get_context_config(session.context_name)
+                        if ctx_cfg:
+                            workflow_name = getattr(ctx_cfg, "workflow", None)
+                except Exception:
+                    logger.debug("Failed to get workflow from context", call_id=call_id, exc_info=True)
+
+            if workflow_name:
+                from datetime import datetime
+                from .core.workflow_engine import WorkflowEngine
+                session.workflow_started_at = datetime.utcnow()
+                await self.session_store.upsert_call(session)
+                logger.info(
+                    "Starting workflow",
+                    workflow=workflow_name,
+                    call_id=call_id,
+                )
+                try:
+                    workflow_engine = WorkflowEngine(
+                        workflow_name=workflow_name,
+                        session=session,
+                        session_store=self.session_store,
+                        workflow_loader=self.workflow_loader,
+                        engine=self,
+                    )
+                    workflow_result = await workflow_engine.execute()
+                    logger.info(
+                        "Workflow finished",
+                        workflow=workflow_name,
+                        call_id=call_id,
+                        completed=workflow_result.completed,
+                        transferred=workflow_result.transferred,
+                        hangup=workflow_result.hangup,
+                        reason=workflow_result.reason,
+                        variables=list(workflow_result.variables.keys()),
+                    )
+                    if workflow_result.transferred or workflow_result.hangup:
+                        logger.info(
+                            "Workflow handled termination; skipping provider session",
+                            workflow=workflow_name,
+                            call_id=call_id,
+                            reason=workflow_result.reason,
+                        )
+                        return
+                    if workflow_result.completed:
+                        # Workflow completed — update session with collected variables
+                        # for prompt substitution in the provider session that follows
+                        session.workflow_completed = True
+                        session.workflow_variables = dict(workflow_result.variables)
+                        session.workflow_terminated_reason = workflow_result.reason
+                        await self.session_store.upsert_call(session)
+                except Exception:
+                    logger.debug(
+                        "Workflow execution failed; falling through to provider session",
+                        workflow=workflow_name,
+                        call_id=call_id,
+                        exc_info=True,
+                    )
 
             # Preserve any per-call override previously applied. Only assign a pipeline
             # here if one has already been selected (e.g., via AI_PROVIDER or active_pipeline)

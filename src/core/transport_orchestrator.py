@@ -62,6 +62,9 @@ class ContextConfig:
     disable_global_in_call_tools: Optional[List[str]] = None  # Global in-call tools to disable
     disable_global_post_call_tools: Optional[List[str]] = None  # Global post-call tools to disable
 
+    # Workflow for structured conversation flows
+    workflow: Optional[str] = None  # Workflow name to use for this context
+
 
 @dataclass
 class TransportProfile:
@@ -163,6 +166,8 @@ class TransportOrchestrator:
                         or context_dict.get('disable_global_in_call_http_tools')  # legacy Admin UI key
                     ),
                     disable_global_post_call_tools=context_dict.get('disable_global_post_call_tools'),
+                    # Workflow for structured conversation flows
+                    workflow=context_dict.get('workflow'),
                 )
                 logger.debug("Loaded context mapping", name=name, context=contexts[name])
             except Exception as exc:
