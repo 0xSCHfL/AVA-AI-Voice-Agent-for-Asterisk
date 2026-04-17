@@ -134,9 +134,13 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     if user is None:
         raise credentials_exception
 
-    # Include role from token
-    user.role = role
-    return user
+    # Return user with role from token
+    return User(
+        username=user.username,
+        role=role,
+        disabled=user.disabled,
+        must_change_password=user.must_change_password,
+    )
 
 
 # --- Routes ---
