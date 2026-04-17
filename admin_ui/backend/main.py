@@ -114,7 +114,7 @@ if _is_remote_bind and _raw_jwt_secret in _placeholder_secrets:
         _uvicorn_host,
     )
 
-from api import config, system, wizard, logs, local_ai, ollama, mcp, calls, outbound, tools, docs  # noqa: E402
+from api import config, system, wizard, logs, local_ai, ollama, mcp, calls, outbound, tools, docs, workflows  # noqa: E402
 import auth  # noqa: E402
 
 # Allow disabling API docs in production for security hardening

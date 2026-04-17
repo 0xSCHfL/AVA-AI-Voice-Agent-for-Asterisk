@@ -1,17 +1,23 @@
-import React, { useEffect, useState, Suspense, lazy } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import React, { useState, useEffect, createContext, useContext, lazy, Suspense } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { ConfirmDialogProvider } from './hooks/useConfirmDialog';
+import { AuthProvider, RequireAuth, useAuth } from './auth/AuthContext';
+import { SidebarProvider, useSidebar } from './hooks/useSidebar';
+
+function decodeJWTPayload(token: string): Record<string, any> {
+    try {
+        const base64 = token.replace(/-/g, '+').replace(/_/g, '/').split('.')[1];
+        return JSON.parse(atob(base64));
+    } catch {
+        return {};
+    }
+}
 import AppShell from './components/layout/AppShell';
 import Dashboard from './pages/Dashboard';
 import CallHistoryPage from './pages/CallHistoryPage';
 import CallSchedulingPage from './pages/CallSchedulingPage';
 import axios from 'axios';
-
-// Auth
-import { AuthProvider } from './auth/AuthContext';
-import { RequireAuth } from './auth/RequireAuth';
-import LoginPage from './pages/LoginPage';
 
 // Core Configuration Pages
 import ProvidersPage from './pages/ProvidersPage';
@@ -20,7 +26,6 @@ import ContextsPage from './pages/ContextsPage';
 import ProfilesPage from './pages/ProfilesPage';
 import ToolsPage from './pages/ToolsPage';
 import MCPPage from './pages/MCPPage';
-import WorkflowsPage from './pages/WorkflowsPage';
 
 // Advanced Configuration Pages
 import VADPage from './pages/Advanced/VADPage';
@@ -36,6 +41,16 @@ import DockerPage from './pages/System/DockerPage';
 // Help
 import HelpPage from './pages/HelpPage';
 
+// Settings
+import SettingsPage from './pages/SettingsPage';
+
+// User Management
+import UserManagementPage from './pages/UserManagementPage';
+
+// Auth
+import LoginPage from './pages/LoginPage';
+import ForcePasswordChangePage from './pages/ForcePasswordChangePage';
+
 // Lazy-loaded heavy pages (code-splitting for better initial load)
 const Wizard = lazy(() => import('./pages/Wizard'));
 const RawYamlPage = lazy(() => import('./pages/Advanced/RawYamlPage'));
@@ -44,6 +59,8 @@ const TerminalPage = lazy(() => import('./pages/System/TerminalPage'));
 const ModelsPage = lazy(() => import('./pages/System/ModelsPage'));
 const UpdatesPage = lazy(() => import('./pages/System/UpdatesPage'));
 const AsteriskPage = lazy(() => import('./pages/System/AsteriskPage'));
+const WorkflowsPage = lazy(() => import("./pages/WorkflowsPage"));
+const WorkflowsPage = lazy(() => import("./pages/WorkflowsPage"));
 
 // Loading fallback for lazy-loaded pages
 const PageLoader = () => (
@@ -52,10 +69,51 @@ const PageLoader = () => (
     </div>
 );
 
+// Auth Gate — redirects to login if unauthenticated
+const AuthGate = ({ children }: { children: React.ReactNode }) => {
+    const { user, loading } = useAuth();
+    const navigate = useNavigate();
+    const location = useLocation();
+
+    useEffect(() => {
+        // Don't redirect on login page
+        if (location.pathname === '/login') return;
+        
+        if (!loading && !user) {
+            navigate('/login', { replace: true });
+        }
+    }, [loading, user, navigate, location.pathname]);
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center min-h-screen">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+        );
+    }
+
+    return <>{children}</>;
+};
+
+// Admin Gate — redirects to home if not admin
+const AdminGate = ({ children }: { children: React.ReactNode }) => {
+    const { user } = useAuth();
+    const navigate = useNavigate();
+    const location = useLocation();
+
+    if (user && user.role !== 'admin') {
+        navigate('/', { replace: true });
+        return null;
+    }
+
+    return <>{children}</>;
+};
+
 // Auth/Setup Guard
 const SetupGuard = ({ children }: { children: React.ReactNode }) => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const { user } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -64,7 +122,6 @@ const SetupGuard = ({ children }: { children: React.ReactNode }) => {
 
         const checkStatus = async () => {
             try {
-                // Add timeout to prevent hanging
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 5000);
 
@@ -74,21 +131,25 @@ const SetupGuard = ({ children }: { children: React.ReactNode }) => {
 
                 clearTimeout(timeoutId);
 
-                if (mounted) {
-                    // If not configured and not already on wizard, redirect
-                    if (!res.data.configured && location.pathname !== '/wizard') {
-                        navigate('/wizard');
-                    }
-                    setLoading(false);
+                if (!mounted) return;
+
+                const data = res.data;
+                if (data.completed === false && location.pathname !== '/wizard') {
+                    navigate('/wizard', { replace: true });
+                } else if (data.completed === true && location.pathname === '/wizard') {
+                    navigate('/', { replace: true });
                 }
-            } catch (err) {
-                console.error('Failed to check setup status', err);
-                if (mounted) {
-                    // If API fails, we assume not configured or backend down
-                    // But we shouldn't block the UI entirely
-                    setError('Failed to connect to backend API');
+                setLoading(false);
+            } catch (err: any) {
+                if (!mounted) return;
+                if (err.name === 'AbortError' || err.code === 'ECONNABORTED') {
+                    setError('Connection timeout - is the admin UI backend running?');
+                } else if (err.response?.status === 401) {
                     setLoading(false);
+                } else {
+                    setError(err.message || 'Failed to check wizard status');
                 }
+                setLoading(false);
             }
         };
 
@@ -100,87 +161,83 @@ const SetupGuard = ({ children }: { children: React.ReactNode }) => {
     }, [navigate, location.pathname]);
 
     if (loading) {
-        console.log("SetupGuard: loading");
         return (
-            <div className="min-h-screen flex items-center justify-center flex-col gap-4">
+            <div className="flex items-center justify-center min-h-screen">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                <p className="text-muted-foreground text-sm">Connecting to system...</p>
             </div>
         );
     }
 
-    if (error && location.pathname !== '/wizard') {
-        console.warn("Rendering app despite setup check failure:", error);
+    if (error) {
+        return (
+            <div className="flex items-center justify-center min-h-screen">
+                <div className="text-center">
+                    <p className="text-destructive text-lg mb-2">Error</p>
+                    <p className="text-muted-foreground">{error}</p>
+                </div>
+            </div>
+        );
     }
 
-    console.log("SetupGuard: rendering children");
     return <>{children}</>;
+};
+
+// Layout wrapper that uses sidebar context
+const LayoutWrapper = () => {
+    const { sidebarOpen, toggleSidebar } = useSidebar();
+    return <AppShell sidebarOpen={sidebarOpen} onToggleSidebar={toggleSidebar} />;
 };
 
 function App() {
     return (
-        <AuthProvider>
-            <ConfirmDialogProvider>
-            <Toaster position="top-right" richColors closeButton />
-            <Router>
-                <Routes>
-                    <Route path="/login" element={<LoginPage />} />
-
-                    <Route path="*" element={
-                        <RequireAuth>
-                            <SetupGuard>
+        <Router>
+            <AuthProvider>
+                <ConfirmDialogProvider>
+                    <SidebarProvider>
+                        <Toaster position="top-right" richColors />
+                        <SetupGuard>
+                            <AuthGate>
                                 <Suspense fallback={<PageLoader />}>
                                     <Routes>
-                                        {/* Setup Wizard Route (lazy) */}
+                                        <Route path="/login" element={<LoginPage />} />
                                         <Route path="/wizard" element={<Wizard />} />
-
-                                        {/* Main Application Layout */}
-                                        <Route element={<AppShell />}>
-                                            <Route path="/" element={<Dashboard />} />
-                                            <Route path="/history" element={<CallHistoryPage />} />
-                                            <Route path="/scheduling" element={<CallSchedulingPage />} />
-
-                                            {/* Core Configuration */}
-                                            <Route path="/providers" element={<ProvidersPage />} />
-                                            <Route path="/pipelines" element={<PipelinesPage />} />
-                                            <Route path="/contexts" element={<ContextsPage />} />
+                                        <Route element={<LayoutWrapper />}>
+                                        <Route path="/" element={<Dashboard />} />
+                                        <Route path="/history" element={<CallHistoryPage />} />
+                                        <Route path="/scheduling" element={<CallSchedulingPage />} />
+                                        <Route path="/providers" element={<ProvidersPage />} />
+                                        <Route path="/pipelines" element={<PipelinesPage />} />
+                                        <Route path="/contexts" element={<ContextsPage />} />
                                             <Route path="/workflows" element={<WorkflowsPage />} />
-                                            <Route path="/profiles" element={<ProfilesPage />} />
-                                            <Route path="/tools" element={<ToolsPage />} />
-                                            <Route path="/mcp" element={<MCPPage />} />
-
-                                            {/* Advanced Settings */}
-                                            <Route path="/vad" element={<VADPage />} />
-                                            <Route path="/streaming" element={<StreamingPage />} />
-                                            <Route path="/llm" element={<LLMPage />} />
-                                            <Route path="/transport" element={<TransportPage />} />
-                                            <Route path="/barge-in" element={<BargeInPage />} />
-                                            <Route path="/yaml" element={<RawYamlPage />} />
-
-                                            {/* System Management */}
-                                            <Route path="/env" element={<EnvPage />} />
-                                            <Route path="/docker" element={<DockerPage />} />
-                                            <Route path="/asterisk" element={<AsteriskPage />} />
-                                            <Route path="/logs" element={<LogsPage />} />
-                                            <Route path="/terminal" element={<TerminalPage />} />
-                                            <Route path="/models" element={<ModelsPage />} />
-                                            <Route path="/updates" element={<UpdatesPage />} />
-
-                                            {/* Help */}
-                                            <Route path="/help" element={<HelpPage />} />
-
-                                            {/* Fallback */}
-                                            <Route path="*" element={<Navigate to="/" replace />} />
-                                        </Route>
-                                    </Routes>
-                                </Suspense>
-                            </SetupGuard>
-                        </RequireAuth>
-                    } />
-                </Routes>
-            </Router>
-            </ConfirmDialogProvider>
-        </AuthProvider>
+                                        <Route path="/profiles" element={<ProfilesPage />} />
+                                        <Route path="/tools" element={<ToolsPage />} />
+                                        <Route path="/mcp" element={<MCPPage />} />
+                                        <Route path="/users" element={<AdminGate><UserManagementPage /></AdminGate>} />
+                                        <Route path="/vad" element={<VADPage />} />
+                                        <Route path="/streaming" element={<StreamingPage />} />
+                                        <Route path="/llm" element={<LLMPage />} />
+                                        <Route path="/transport" element={<TransportPage />} />
+                                        <Route path="/barge-in" element={<BargeInPage />} />
+                                        <Route path="/yaml" element={<RawYamlPage />} />
+                                        <Route path="/env" element={<EnvPage />} />
+                                        <Route path="/docker" element={<DockerPage />} />
+                                        <Route path="/asterisk" element={<AsteriskPage />} />
+                                        <Route path="/logs" element={<LogsPage />} />
+                                        <Route path="/terminal" element={<TerminalPage />} />
+                                        <Route path="/models" element={<ModelsPage />} />
+                                        <Route path="/updates" element={<UpdatesPage />} />
+                                        <Route path="/help" element={<HelpPage />} />
+                                        <Route path="/settings" element={<SettingsPage />} />
+                                        <Route path="*" element={<Navigate to="/" replace />} />
+                                    </Route>
+                                </Routes>
+                            </Suspense>
+                            </AuthGate>
+                        </SetupGuard>
+                    </SidebarProvider>
+                </ConfirmDialogProvider>
+            </AuthProvider>
+        </Router>
     );
 }
 
