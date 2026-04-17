@@ -137,6 +137,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false }) => {
                     <SidebarItem to="/llm" icon={Brain} label="LLM Defaults" isCollapsed={isCollapsed} />
                     <SidebarItem to="/transport" icon={Radio} label="Transport" isCollapsed={isCollapsed} />
                     <SidebarItem to="/barge-in" icon={Globe} label="Barge-In" isCollapsed={isCollapsed} />
+                    <SidebarItem to="/yaml" icon={Code} label="Raw YAML" isCollapsed={isCollapsed} />
                 </SidebarGroup>
 
                 <SidebarGroup title="System" isCollapsed={isCollapsed}>
