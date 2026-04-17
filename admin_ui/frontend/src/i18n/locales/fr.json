@@ -1,0 +1,50 @@
+{
+  "settings": {
+    "title": "Paramètres",
+    "subtitle": "Gérez votre profil et vos préférences.",
+    "profile": {
+      "title": "Profil",
+      "nameLabel": "Nom",
+      "namePlaceholder": "Entrez votre nom",
+      "saveButton": "Enregistrer",
+      "saveSuccess": "Nom mis à jour avec succès",
+      "saveError": "Échec de la mise à jour du nom"
+    },
+    "language": {
+      "title": "Langue",
+      "description": "Choisissez votre langue préférée",
+      "selectLabel": "Sélectionner la langue"
+    },
+    "security": {
+      "title": "Sécurité",
+      "changePassword": "Changer le mot de passe",
+      "changePasswordDesc": "Mettez à jour votre mot de passe"
+    },
+    "account": {
+      "title": "Compte",
+      "signOutAll": "Déconnecter tous les appareils",
+      "signOutAllDesc": "Déconnectez-vous de tous les appareils et sessions",
+      "deleteAccount": "Supprimer le compte",
+      "deleteAccountDesc": "Supprimez définitivement votre compte et toutes les données"
+    },
+    "signOutConfirm": {
+      "title": "Déconnecter tous les appareils",
+      "description": "Êtes-vous sûr de vouloir vous déconnecter de tous les appareils ?",
+      "confirm": "Déconnecter",
+      "cancel": "Annuler"
+    },
+    "deleteConfirm": {
+      "title": "Supprimer le compte",
+      "description": "Êtes-vous sûr de vouloir supprimer votre compte ? Cette action est irréversible.",
+      "confirm": "Supprimer le compte",
+      "cancel": "Annuler"
+    }
+  },
+  "common": {
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "confirm": "Confirmer",
+    "loading": "Chargement..."
+  }
+}

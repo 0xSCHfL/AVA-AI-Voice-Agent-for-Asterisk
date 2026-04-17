@@ -4,6 +4,7 @@ import { Toaster } from 'sonner';
 import { ConfirmDialogProvider } from './hooks/useConfirmDialog';
 import { AuthProvider, RequireAuth, useAuth } from './auth/AuthContext';
 import { SidebarProvider, useSidebar } from './hooks/useSidebar';
+import './i18n';
 
 function decodeJWTPayload(token: string): Record<string, any> {
     try {

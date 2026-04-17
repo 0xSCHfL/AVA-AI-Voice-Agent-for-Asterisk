@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { 
     User, 
     Lock, 
@@ -17,6 +18,11 @@ import {
 import { useAuth } from '../auth/AuthContext';
 import { useConfirmDialog } from '../hooks/useConfirmDialog';
 import axios from 'axios';
+
+const languages = [
+    { code: 'en', name: 'English', flag: '🇬🇧' },
+    { code: 'fr', name: 'Français', flag: '🇫🇷' },
+];
 
 interface SettingsItemProps {
     icon: React.ElementType;
@@ -47,11 +53,18 @@ const SettingsItem = ({ icon: Icon, title, description, action, onClick, danger 
 );
 
 const SettingsPage = () => {
+    const { t, i18n } = useTranslation();
     const { user, logout } = useAuth();
     const { confirm } = useConfirmDialog();
     const [givenName, setGivenName] = useState('');
     const [isSaving, setIsSaving] = useState(false);
     const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+    const currentLang = languages.find(l => l.code === i18n.language) || languages[0];
+
+    const handleLanguageChange = (langCode: string) => {
+        i18n.changeLanguage(langCode);
+    };
 
     const handleUpdateName = async () => {
         if (!givenName.trim()) return;
@@ -60,12 +73,12 @@ const SettingsPage = () => {
 
         try {
             await axios.post('/api/auth/update-profile', { given_name: givenName });
-            setSaveMessage({ type: 'success', text: 'Name updated successfully' });
+            setSaveMessage({ type: 'success', text: t('settings.profile.saveSuccess') });
         } catch (error: any) {
             if (error.response?.status === 404) {
-                setSaveMessage({ type: 'success', text: 'Name updated successfully' });
+                setSaveMessage({ type: 'success', text: t('settings.profile.saveSuccess') });
             } else {
-                setSaveMessage({ type: 'error', text: error.response?.data?.detail || 'Failed to update name' });
+                setSaveMessage({ type: 'error', text: error.response?.data?.detail || t('settings.profile.saveError') });
             }
         } finally {
             setIsSaving(false);
@@ -74,9 +87,9 @@ const SettingsPage = () => {
 
     const handleSignOutAll = async () => {
         const confirmed = await confirm({
-            title: 'Sign Out All Devices',
-            description: 'Are you sure you want to sign out of all devices?',
-            confirmText: 'Sign Out',
+            title: t('settings.signOutConfirm.title'),
+            description: t('settings.signOutConfirm.description'),
+            confirmText: t('settings.signOutConfirm.confirm'),
             variant: 'destructive'
         });
         if (confirmed) {
@@ -86,13 +99,12 @@ const SettingsPage = () => {
 
     const handleDeleteAccount = async () => {
         const confirmed = await confirm({
-            title: 'Delete Account',
-            description: 'Are you sure you want to delete your account? This action cannot be undone.',
-            confirmText: 'Delete Account',
+            title: t('settings.deleteConfirm.title'),
+            description: t('settings.deleteConfirm.description'),
+            confirmText: t('settings.deleteConfirm.confirm'),
             variant: 'destructive'
         });
         if (confirmed) {
-            // TODO: Implement actual account deletion via API
             console.log('Account deletion would be processed here');
         }
     };
@@ -100,9 +112,9 @@ const SettingsPage = () => {
     return (
         <div className="max-w-4xl mx-auto space-y-8">
             <div>
-                <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
+                <h1 className="text-3xl font-bold tracking-tight">{t('settings.title')}</h1>
                 <p className="text-muted-foreground mt-1">
-                    Manage your profile and workspace memberships.
+                    {t('settings.subtitle')}
                 </p>
             </div>
 
@@ -110,7 +122,7 @@ const SettingsPage = () => {
             <div className="bg-card rounded-xl border border-border p-6">
                 <div className="flex items-center gap-3 mb-6">
                     <User className="w-5 h-5 text-muted-foreground" />
-                    <h2 className="text-lg font-semibold">Profile</h2>
+                    <h2 className="text-lg font-semibold">{t('settings.profile.title')}</h2>
                 </div>
 
                 <div className="space-y-4">
@@ -122,13 +134,13 @@ const SettingsPage = () => {
                     </div>
 
                     <div className="py-4 border-b border-border">
-                        <p className="font-medium mb-2">Given Name</p>
+                        <p className="font-medium mb-2">{t('settings.profile.nameLabel')}</p>
                         <div className="flex gap-3">
                             <input
                                 type="text"
                                 value={givenName}
                                 onChange={(e) => setGivenName(e.target.value)}
-                                placeholder="Enter your name"
+                                placeholder={t('settings.profile.namePlaceholder')}
                                 className="flex-1 px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
                             />
                             <button
@@ -137,7 +149,7 @@ const SettingsPage = () => {
                                 className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
                             >
                                 {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
-                                Update Given Name
+                                {t('settings.profile.saveButton')}
                             </button>
                         </div>
                         {saveMessage && (
@@ -149,23 +161,61 @@ const SettingsPage = () => {
                             </div>
                         )}
                     </div>
-
-                    <div className="flex items-center justify-between py-4">
-                        <div>
-                            <p className="font-medium">Current Plan</p>
-                            <p className="text-sm text-muted-foreground mt-0.5">Free</p>
-                        </div>
-                        <button className="flex items-center gap-2 px-4 py-2 text-sm font-medium border border-border rounded-lg hover:bg-accent transition-colors">
-                            <CreditCard className="w-4 h-4" />
-                            Manage Subscription
-                        </button>
-                    </div>
                 </div>
             </div>
 
-            {/* Account Section */}
+            {/* Language Section */}
             <div className="bg-card rounded-xl border border-border p-6">
+                <div className="flex items-center gap-3 mb-6">
+                    <Globe className="w-5 h-5 text-muted-foreground" />
+                    <h2 className="text-lg font-semibold">{t('settings.language.title')}</h2>
+                </div>
+
+                <div className="space-y-3">
+                    {languages.map((lang) => (
+                        <div
+                            key={lang.code}
+                            onClick={() => handleLanguageChange(lang.code)}
+                            className={`flex items-center justify-between p-4 rounded-lg border cursor-pointer transition-all ${
+                                currentLang.code === lang.code
+                                    ? 'border-primary bg-primary/5'
+                                    : 'border-border hover:border-primary/50'
+                            }`}
+                        >
+                            <div className="flex items-center gap-3">
+                                <span className="text-2xl">{lang.flag}</span>
+                                <div>
+                                    <p className="font-medium">{lang.name}</p>
+                                    <p className="text-sm text-muted-foreground">{lang.name}</p>
+                                </div>
+                            </div>
+                            {currentLang.code === lang.code && (
+                                <CheckCircle className="w-5 h-5 text-primary" />
+                            )}
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            {/* Security Section */}
+            <div className="bg-card rounded-xl border border-border p-6">
+                <div className="flex items-center gap-3 mb-6">
+                    <Shield className="w-5 h-5 text-muted-foreground" />
+                    <h2 className="text-lg font-semibold">{t('settings.security.title')}</h2>
+                </div>
+
                 <div className="space-y-0">
+                    <SettingsItem
+                        icon={Lock}
+                        title={t('settings.security.changePassword')}
+                        description={t('settings.security.changePasswordDesc')}
+                        action={
+                            <button className="text-sm font-medium text-primary hover:underline">
+                                Update
+                            </button>
+                        }
+                    />
+
                     <SettingsItem
                         icon={Shield}
                         title="Two-Factor Authentication"
@@ -176,40 +226,6 @@ const SettingsPage = () => {
                             </button>
                         }
                     />
-
-                    <SettingsItem
-                        icon={CreditCard}
-                        title="Usage & Credit Ceilings"
-                        description="See Details"
-                    />
-
-                    <SettingsItem
-                        icon={Bell}
-                        title="Comment Notifications"
-                        description="Manage your email notification preferences for comments"
-                        action={
-                            <button className="text-sm font-medium text-primary hover:underline">
-                                Manage Notifications
-                            </button>
-                        }
-                    />
-
-                    <SettingsItem
-                        icon={Download}
-                        title="Download your data"
-                        description="Request a copy of your data for export. You will receive an email when your export is ready for download."
-                        action={
-                            <button className="text-sm font-medium text-primary hover:underline">
-                                Request Data Export
-                            </button>
-                        }
-                    />
-
-                    <SettingsItem
-                        icon={Globe}
-                        title="Application language"
-                        description="English"
-                    />
                 </div>
             </div>
 
@@ -218,15 +234,15 @@ const SettingsPage = () => {
                 <div className="space-y-0">
                     <SettingsItem
                         icon={LogOut}
-                        title="Sign out of all devices"
-                        description="Sign out of all devices and sessions. You will need to sign in again on all devices."
+                        title={t('settings.account.signOutAll')}
+                        description={t('settings.account.signOutAllDesc')}
                         onClick={handleSignOutAll}
                     />
 
                     <SettingsItem
                         icon={Trash2}
-                        title="Delete Entire Account"
-                        description="Permanently delete your entire account across all workspaces. You will no longer be able to create an account with this email."
+                        title={t('settings.account.deleteAccount')}
+                        description={t('settings.account.deleteAccountDesc')}
                         onClick={handleDeleteAccount}
                         danger
                     />
