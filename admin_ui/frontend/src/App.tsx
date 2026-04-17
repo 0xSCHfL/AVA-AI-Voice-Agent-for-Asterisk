@@ -67,7 +67,7 @@ const PageLoader = () => (
     </div>
 );
 
-// Auth Gate — redirects to login if unauthenticated
+// Auth Gate — redirects to login if unauthenticated, or to force-password-change if required
 const AuthGate = ({ children }: { children: React.ReactNode }) => {
     const { user, loading } = useAuth();
     const navigate = useNavigate();
@@ -81,6 +81,22 @@ const AuthGate = ({ children }: { children: React.ReactNode }) => {
         
         if (!loading && !user) {
             navigate('/login', { replace: true });
+            return;
+        }
+        
+        // Check if user needs to change password
+        if (!loading && user) {
+            const token = localStorage.getItem('token');
+            if (token) {
+                try {
+                    const payload = JSON.parse(atob(token.split('.')[1]));
+                    if (payload.must_change_password === true) {
+                        navigate('/force-password-change', { replace: true });
+                    }
+                } catch (e) {
+                    // Invalid token, ignore
+                }
+            }
         }
     }, [loading, user, navigate, location.pathname]);
 
@@ -184,9 +200,10 @@ function App() {
                         <SetupGuard>
                             <AuthGate>
                                 <Suspense fallback={<PageLoader />}>
-                                    <Routes>
-                                        <Route path="/login" element={<LoginPage />} />
-                                        <Route path="/wizard" element={<Wizard />} />
+                                <Routes>
+                                    <Route path="/login" element={<LoginPage />} />
+                                    <Route path="/force-password-change" element={<ForcePasswordChangePage />} />
+                                    <Route path="/wizard" element={<Wizard />} />
                                         <Route element={<LayoutWrapper />}>
                                             <Route path="/" element={<Dashboard />} />
                                             <Route path="/history" element={<CallHistoryPage />} />

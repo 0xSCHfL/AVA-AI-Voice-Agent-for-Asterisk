@@ -116,9 +116,12 @@ def load_users():
     with open(USERS_PATH, "r") as f:
         users = json.load(f)
 
-    # Ensure admin user has admin role
-    if "admin" in users and users["admin"].get("role") != UserRole.ADMIN:
-        users["admin"]["role"] = UserRole.ADMIN
+    # Ensure admin user has admin role and must_change_password is true
+    if "admin" in users:
+        if users["admin"].get("role") != UserRole.ADMIN:
+            users["admin"]["role"] = UserRole.ADMIN
+        if not users["admin"].get("must_change_password", False):
+            users["admin"]["must_change_password"] = True
         with open(USERS_PATH, "w") as f:
             json.dump(users, f, indent=2)
 
