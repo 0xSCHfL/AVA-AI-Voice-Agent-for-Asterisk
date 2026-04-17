@@ -239,48 +239,51 @@ async def create_user(username: str, password: str, role: str = "user"):
     return {"status": "success", "message": f"User '{username}' created"}
 
 
+class UserUpdateRequest(BaseModel):
+    email: Optional[str] = None
+    role: Optional[str] = None
+    disabled: Optional[bool] = None
+    new_password: Optional[str] = None
+
+
+class UserCreateRequest(BaseModel):
+    username: str
+    email: Optional[str] = None
+    password: str
+    role: str = "user"
+
+
 @router.put("/users/{username}", dependencies=[Depends(get_admin_user)])
-async def update_user(username: str, role: str = None, disabled: bool = None):
+async def update_user(username: str, update: UserUpdateRequest):
     users = load_users()
     if username not in users:
         raise HTTPException(status_code=404, detail="User not found")
-    if role is not None:
-        users[username]["role"] = role
-    if disabled is not None:
-        users[username]["disabled"] = disabled
+    if update.email is not None:
+        users[username]["email"] = update.email
+    if update.role is not None:
+        users[username]["role"] = update.role
+    if update.disabled is not None:
+        users[username]["disabled"] = update.disabled
+    if update.new_password:
+        users[username]["hashed_password"] = get_password_hash(update.new_password)
+        users[username]["must_change_password"] = False
     save_users(users)
     return {"status": "success", "message": f"User '{username}' updated"}
 
 
-@router.delete("/users/{username}", dependencies=[Depends(get_admin_user)])
-async def delete_user(username: str):
-    users = load_users()
-    if username not in users:
-        raise HTTPException(status_code=404, detail="User not found")
-    if username == "admin":
-        raise HTTPException(
-            status_code=400, detail="Cannot delete the primary admin account"
-        )
-    del users[username]
-    save_users(users)
-    return {"status": "success", "message": f"User '{username}' deleted"}
-
-
 @router.post("/register", dependencies=[Depends(get_admin_user)])
-async def register_user(
-    username: str, password: str, email: str = None, role: str = "user"
-):
+async def register_user(create: UserCreateRequest):
     users = load_users()
-    if username in users:
+    if create.username in users:
         raise HTTPException(status_code=400, detail="User already exists")
-    users[username] = {
-        "username": username,
-        "email": email,
-        "hashed_password": get_password_hash(password),
-        "role": role,
+    users[create.username] = {
+        "username": create.username,
+        "email": create.email,
+        "hashed_password": get_password_hash(create.password),
+        "role": create.role,
         "disabled": False,
         "must_change_password": False,
         "created_at": datetime.utcnow().isoformat(),
     }
     save_users(users)
-    return {"status": "success", "message": f"User '{username}' created"}
+    return {"status": "success", "message": f"User '{create.username}' created"}

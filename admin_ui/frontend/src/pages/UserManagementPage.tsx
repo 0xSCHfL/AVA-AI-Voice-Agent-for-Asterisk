@@ -25,6 +25,7 @@ interface UserUpdate {
     email?: string | null;
     role?: 'admin' | 'user';
     disabled?: boolean;
+    new_password?: string;
 }
 
 const UserManagementPage = () => {
@@ -426,13 +427,15 @@ const EditUserModal = ({ user, onClose, onSubmit, saving }: ModalProps & { user:
     const [email, setEmail] = useState(user.email || '');
     const [role, setRole] = useState<'admin' | 'user'>(user.role);
     const [disabled, setDisabled] = useState(user.disabled);
+    const [newPassword, setNewPassword] = useState('');
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         onSubmit({
             email: email || null,
             role,
-            disabled
+            disabled,
+            new_password: newPassword || undefined
         });
     };
 
@@ -480,6 +483,16 @@ const EditUserModal = ({ user, onClose, onSubmit, saving }: ModalProps & { user:
                             className="rounded"
                         />
                         <label htmlFor="disabled" className="text-sm font-medium">Account disabled</label>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium mb-1">New Password (leave blank to keep current)</label>
+                        <input
+                            type="password"
+                            value={newPassword}
+                            onChange={(e) => setNewPassword(e.target.value)}
+                            minLength={8}
+                            className="w-full px-3 py-2 rounded border border-input bg-background text-sm"
+                        />
                     </div>
                     <div className="flex justify-end gap-2 pt-2">
                         <button
