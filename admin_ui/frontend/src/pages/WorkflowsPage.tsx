@@ -245,7 +245,7 @@ const WorkflowsPage = () => {
             setWorkflowsData((d: Record<string, any>) => ({ ...d, [name]: {} }));
             setCanvasWorkflow(name);
           }}
-          className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded text-sm font-medium transition-colors border border-transparent dark:border-primary/30"
+className="flex items-center gap-2 px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white dark:bg-primary dark:hover:bg-primary/90 dark:text-primary-foreground rounded text-sm font-medium transition-colors"
         >
           <Plus className="w-4 h-4" />
           New Workflow
@@ -324,7 +324,7 @@ const WorkflowsPage = () => {
                 setWorkflowsData((d: Record<string, any>) => ({ ...d, [name]: {} }));
                 setCanvasWorkflow(name);
               }}
-className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded text-sm font-medium transition-colors border border-transparent dark:border-primary/30"
+className="flex items-center gap-2 px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white dark:bg-primary dark:hover:bg-primary/90 dark:text-primary-foreground rounded text-sm font-medium transition-colors"
             >
               <Plus className="w-4 h-4" /> Create Your First Workflow
             </button>
@@ -332,7 +332,7 @@ className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text
         </div>
       ) : (
         // Data Table
-        <div className="bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 rounded-lg overflow-hidden">
+        <div className="bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 rounded-lg overflow-visible">
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-200 dark:border-gray-800">
