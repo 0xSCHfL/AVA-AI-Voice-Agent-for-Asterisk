@@ -221,6 +221,26 @@ const WorkflowsPage = () => {
     toast.success('Downloaded JSON');
   };
 
+  const validateAndSaveWorkflow = async (form: any, isNewWorkflow: boolean) => {
+    try {
+      const validateRes = await axios.post(`/api/workflows/${form.name}/validate`, form);
+      if (!validateRes.data.valid) {
+        const errs = validateRes.data.errors;
+        return { valid: false, errors: Array.isArray(errs) ? errs : errs?.errors || [] };
+      }
+
+      await axios.put(`/api/workflows/${form.name}`, form);
+      return { valid: true };
+    } catch (err: any) {
+      const detail = err.response?.data?.detail;
+      if (detail?.errors) {
+        const errs = detail.errors;
+        return { valid: false, errors: Array.isArray(errs) ? errs : errs?.errors || [] };
+      }
+      throw err;
+    }
+  };
+
   // Filter and sort workflows
   const filteredWorkflows = useMemo(() => {
     let result = workflowNames
