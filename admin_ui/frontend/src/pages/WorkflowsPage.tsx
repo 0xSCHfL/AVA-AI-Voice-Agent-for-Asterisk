@@ -113,7 +113,10 @@ const WorkflowsPage = () => {
 
   const handleDuplicate = async (name: string) => {
     const source = workflowsData[name];
-    if (!source) return;
+    if (!source) {
+      toast.error('Source workflow not found');
+      return;
+    }
     const newName = `${name}_copy`;
     if (workflowNames.includes(newName)) {
       toast.error('Duplicate name already exists');
@@ -133,9 +136,16 @@ const WorkflowsPage = () => {
         context: source.context || null,
       });
       toast.success(`Workflow duplicated as ${newName}`);
+      setMenuOpen(null);
       fetchWorkflows();
     } catch (err: any) {
-      toast.error('Failed to duplicate workflow');
+      console.error('Duplicate error:', err);
+      const detail = err.response?.data?.detail;
+      if (detail?.errors && Array.isArray(detail.errors)) {
+        toast.error(detail.errors.join(', '));
+      } else {
+        toast.error(detail || 'Failed to duplicate workflow');
+      }
     }
   };
 
