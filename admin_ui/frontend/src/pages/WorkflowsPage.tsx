@@ -73,11 +73,16 @@ const WorkflowsPage = () => {
   };
 
   if (canvasWorkflow !== null) {
+    const wf = workflowsData[canvasWorkflow] || {};
     return (
       <WorkflowCanvas
         workflowName={canvasWorkflow}
-        initialData={workflowsData[canvasWorkflow]}
-        onSave={(data) => handleSaveCanvas(data as { steps: any[]; _canvas: { nodes: any[]; edges: any[] } }, canvasWorkflow)}
+        initialNodes={wf._canvas?.nodes}
+        initialEdges={wf._canvas?.edges}
+        onSave={(data) => {
+          const { steps, nodes, edges } = data as { steps: any[]; nodes: any[]; edges: any[] };
+          handleSaveCanvas({ steps, _canvas: { nodes, edges } }, canvasWorkflow);
+        }}
         onClose={() => setCanvasWorkflow(null)}
       />
     );

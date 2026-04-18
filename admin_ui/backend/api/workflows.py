@@ -103,39 +103,10 @@ def _validate_workflow_steps(steps: List[Dict[str, Any]]) -> List[str]:
         step_type = step.get("type")
         if not step_type:
             errors.append(f"Step '{step_id or i}' is missing required field: type")
-        elif step_type not in ("prompt", "collect", "action", "branch"):
-            errors.append(f"Step '{step_id or i}' has invalid type: '{step_type}' (must be prompt, collect, action, or branch)")
+        elif step_type not in ("conversation", "api_request", "transfer_call", "end_call", "tool"):
+            errors.append(f"Step '{step_id or i}' has invalid type: '{step_type}' (must be conversation, api_request, transfer_call, end_call, or tool)")
 
-        # Validate prompt/collect steps have prompt text
-        if step_type in ("prompt", "collect"):
-            if not step.get("prompt"):
-                errors.append(f"Step '{step_id}' of type '{step_type}' must have a 'prompt' field")
-
-        # Validate collect steps have entity
-        if step_type == "collect":
-            if not step.get("entity"):
-                errors.append(f"Step '{step_id}' of type 'collect' must have an 'entity' field")
-
-        # Validate action steps have tool name
-        if step_type == "action":
-            if not step.get("tool"):
-                errors.append(f"Step '{step_id}' of type 'action' must have a 'tool' field")
-
-        # Validate branch steps have at least one condition or default
-        if step_type == "branch":
-            conditions = step.get("conditions") or []
-            if not conditions and not step.get("default"):
-                errors.append(f"Step '{step_id}' of type 'branch' must have at least one 'condition' or a 'default'")
-
-        # Validate condition goto targets exist
-        if step_type == "branch":
-            for j, cond in enumerate(step.get("conditions") or []):
-                if not isinstance(cond, dict):
-                    errors.append(f"Step '{step_id}' condition {j} is not a valid object")
-                    continue
-                goto = cond.get("goto")
-                if goto and goto not in step_ids and goto not in [s.get("id") for s in steps]:
-                    errors.append(f"Step '{step_id}' condition {j} goto target '{goto}' does not exist")
+        # Validate conversation/api_request/transfer_call/end_call/tool steps (no special fields required)
 
     return errors
 

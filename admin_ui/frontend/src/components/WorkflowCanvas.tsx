@@ -1,52 +1,126 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
-  Plus, Trash2, Copy, X, Save, MessageSquare,
-  ArrowRight, Zap, GitBranch, ChevronDown,
-  Settings, Play, Loader2, AlertCircle, Check,
-  MousePointer2, ZoomIn, ZoomOut, Maximize2, RotateCcw
+  Plus, X, Save, Loader2,
+  ZoomIn, ZoomOut, Maximize2, RotateCcw,
+  RefreshCw, Settings, ArrowLeftRight, Code2, MoreHorizontal,
+  ChevronDown,
 } from 'lucide-react';
 
-const NODE_WIDTH = 260;
-const NODE_COLORS = {
-  start:   { bg: '#0f4a3a', border: '#10b981', accent: '#10b981', label: 'Start' },
-  prompt:  { bg: '#0d2d4a', border: '#3b82f6', accent: '#3b82f6', label: 'Prompt' },
-  collect: { bg: '#2d1a4a', border: '#8b5cf6', accent: '#8b5cf6', label: 'Collect' },
-  action:  { bg: '#3a2a0a', border: '#f59e0b', accent: '#f59e0b', label: 'Action' },
-  branch:  { bg: '#0a3a1a', border: '#22c55e', accent: '#22c55e', label: 'Branch' },
+// ─── Types & constants ────────────────────────────────────────────────────────
+
+const SNAP = 20;
+const NODE_W = 300;
+
+const NODE_TYPES = {
+  conversation: {
+    label: 'Conversation',
+    color: '#3b82f6',
+    bg: '#0f1e35',
+    icon: '💬',
+    iconBg: '#1d4ed8',
+    shortcut: 'Ctrl+Shift+C',
+  },
+  api_request: {
+    label: 'API Request',
+    color: '#a855f7',
+    bg: '#1a0f35',
+    icon: '⚡',
+    iconBg: '#7c3aed',
+    shortcut: 'Ctrl+Shift+A',
+  },
+  transfer_call: {
+    label: 'Transfer Call',
+    color: '#22c55e',
+    bg: '#0f2a1a',
+    icon: '📞',
+    iconBg: '#16a34a',
+    shortcut: 'Ctrl+Shift+F',
+  },
+  end_call: {
+    label: 'End call',
+    color: '#ef4444',
+    bg: '#2a0f0f',
+    icon: '📵',
+    iconBg: '#dc2626',
+    shortcut: 'Ctrl+Shift+E',
+  },
+  tool: {
+    label: 'Tool',
+    color: '#f59e0b',
+    bg: '#2a1f0f',
+    icon: '🔧',
+    iconBg: '#d97706',
+    shortcut: 'Ctrl+Shift+O',
+  },
 };
 
-const NODE_ICONS = {
-  start:   <Play size={12} />,
-  prompt:  <MessageSquare size={12} />,
-  collect: <ArrowRight size={12} />,
-  action:  <Zap size={12} />,
-  branch:  <GitBranch size={12} />,
+function snap(v) { return Math.round(v / SNAP) * SNAP; }
+function uid() { return Math.random().toString(36).slice(2, 9); }
+
+function bezier(x1, y1, x2, y2) {
+  const dy = Math.abs(y2 - y1);
+  const cy = Math.max(dy * 0.5, 60);
+  return `M ${x1} ${y1} C ${x1} ${y1 + cy}, ${x2} ${y2 - cy}, ${x2} ${y2}`;
+}
+
+// ─── Tiny style helpers ───────────────────────────────────────────────────────
+
+const FieldLabel = ({ children }) => (
+  <div style={{ fontSize: 10, color: '#64748b', fontWeight: 500, marginBottom: 4, letterSpacing: '0.02em' }}>
+    {children}
+  </div>
+);
+
+const textareaStyle = {
+  width: '100%', background: 'transparent', border: 'none', outline: 'none',
+  color: '#cbd5e1', fontSize: 11, fontFamily: 'inherit', resize: 'none',
+  lineHeight: 1.6, padding: 0, boxSizing: 'border-box',
 };
 
-const SNAP_GRID = 20;
+const inputStyle = {
+  width: '100%', background: '#ffffff08', border: '1px solid #1e2d3d',
+  borderRadius: 6, color: '#cbd5e1', fontSize: 11, fontFamily: 'inherit',
+  padding: '5px 8px', outline: 'none', boxSizing: 'border-box',
+};
 
-function snapToGrid(v) {
-  return Math.round(v / SNAP_GRID) * SNAP_GRID;
-}
+const iconBtnStyle = {
+  background: 'none', border: 'none', cursor: 'pointer',
+  color: '#64748b', padding: 3, borderRadius: 4, lineHeight: 1,
+  display: 'flex', alignItems: 'center',
+};
 
-function generateId() {
-  return 'node_' + Math.random().toString(36).slice(2, 8);
-}
+// ─── Edge label ───────────────────────────────────────────────────────────────
 
-function cubicPath(x1, y1, x2, y2) {
-  const dx = Math.abs(x2 - x1);
-  const cx = Math.max(dx * 0.5, 80);
-  return `M ${x1} ${y1} C ${x1 + cx} ${y1}, ${x2 - cx} ${y2}, ${x2} ${y2}`;
-}
+const EdgeLabel = ({ x, y, label, onDelete }) => {
+  const [hov, setHov] = useState(false);
+  const text = hov ? '✕ delete' : (label || 'condition');
+  const w = Math.max(text.length * 6.5 + 20, 80);
+  return (
+    <g>
+      <rect
+        x={x - w / 2} y={y - 11} width={w} height={22} rx={11}
+        fill="#1e2d3d" stroke="#334155" strokeWidth={1}
+        style={{ cursor: 'pointer' }}
+        onMouseEnter={() => setHov(true)}
+        onMouseLeave={() => setHov(false)}
+        onClick={onDelete}
+      />
+      <text x={x} y={y + 4} textAnchor="middle"
+        fill={hov ? '#ef4444' : '#94a3b8'} fontSize={10} fontFamily="inherit">
+        {text}
+      </text>
+    </g>
+  );
+};
 
-const WorkflowNode = ({
+// ─── Node component ───────────────────────────────────────────────────────────
+
+const VNode = ({
   node, selected, onSelect, onDragStart,
-  onPortMouseDown, onPortMouseUp,
-  connectingFrom, onDelete, onDuplicate,
-  onUpdateNode,
+  onOutputMouseDown, onInputMouseUp,
+  isConnecting, onDelete, onUpdateNode,
 }) => {
-  const col = NODE_COLORS[node.type] || NODE_COLORS.prompt;
-  const isTarget = connectingFrom && connectingFrom.nodeId !== node.id;
+  const t = NODE_TYPES[node.type] || NODE_TYPES.conversation;
 
   return (
     <div
@@ -54,320 +128,318 @@ const WorkflowNode = ({
         position: 'absolute',
         left: node.x,
         top: node.y,
-        width: NODE_WIDTH,
+        width: NODE_W,
+        userSelect: 'none',
         zIndex: selected ? 20 : 10,
-        fontFamily: "'IBM Plex Mono', monospace",
       }}
-      onMouseDown={e => { e.stopPropagation(); onDragStart(e, node.id); onSelect(node.id); }}
     >
-      <div style={{
-        background: col.bg,
-        border: `1.5px solid ${selected ? col.accent : col.border + '80'}`,
-        borderRadius: 10,
-        boxShadow: selected
-          ? `0 0 0 1px ${col.accent}40, 0 8px 32px #0008`
-          : '0 4px 20px #0006',
-        overflow: 'visible',
-        transition: 'border-color 0.15s, box-shadow 0.15s',
-        cursor: 'grab',
-      }}>
+      {/* Start badge */}
+      {node.isStart && (
+        <div style={{
+          position: 'absolute', top: -26, left: 0,
+          background: '#10b981', color: '#fff',
+          fontSize: 10, fontWeight: 700, letterSpacing: '0.05em',
+          padding: '2px 10px', borderRadius: 4,
+        }}>
+          ▶ Start Node
+        </div>
+      )}
+
+      {/* Input port — top center */}
+      {!node.isStart && (
+        <div
+          onMouseUp={e => { e.stopPropagation(); onInputMouseUp(node.id); }}
+          style={{
+            position: 'absolute', top: -8, left: '50%',
+            transform: 'translateX(-50%)',
+            width: 16, height: 16, borderRadius: '50%',
+            background: isConnecting ? t.color : '#1e293b',
+            border: `2px solid ${isConnecting ? t.color : '#334155'}`,
+            cursor: 'crosshair', zIndex: 30,
+            boxShadow: isConnecting ? `0 0 8px ${t.color}` : 'none',
+            transition: 'all 0.15s',
+          }}
+        />
+      )}
+
+      {/* Card */}
+      <div
+        onMouseDown={e => { if (e.button !== 0) return; e.stopPropagation(); onDragStart(e, node.id); onSelect(node.id); }}
+        style={{
+          background: t.bg,
+          border: `1.5px solid ${selected ? t.color : t.color + '50'}`,
+          borderRadius: 12,
+          overflow: 'hidden',
+          boxShadow: selected
+            ? `0 0 0 1px ${t.color}40, 0 12px 40px #0009`
+            : '0 4px 24px #0007',
+          cursor: 'grab',
+          transition: 'border-color 0.15s, box-shadow 0.15s',
+        }}
+      >
+        {/* Header */}
         <div style={{
           display: 'flex', alignItems: 'center', gap: 8,
-          padding: '9px 12px 8px',
-          borderBottom: `1px solid ${col.border}30`,
+          padding: '10px 12px 9px',
+          background: t.color + '18',
+          borderBottom: `1px solid ${t.color}25`,
         }}>
-          <span style={{
-            display: 'flex', alignItems: 'center', gap: 5,
-            background: col.accent + '25', color: col.accent,
-            borderRadius: 5, padding: '2px 8px 2px 6px',
-            fontSize: 10, fontWeight: 600, letterSpacing: '0.05em',
+          <div style={{
+            width: 28, height: 28, borderRadius: 8,
+            background: t.iconBg, display: 'flex', alignItems: 'center',
+            justifyContent: 'center', fontSize: 14, flexShrink: 0,
           }}>
-            {NODE_ICONS[node.type]}
-            {col.label.toUpperCase()}
-          </span>
+            {t.icon}
+          </div>
           <input
-            value={node.id}
-            onChange={e => onUpdateNode(node.id, { id: e.target.value })}
+            value={node.label || ''}
+            onChange={e => onUpdateNode(node.id, { label: e.target.value })}
             onClick={e => e.stopPropagation()}
             onMouseDown={e => e.stopPropagation()}
             style={{
               flex: 1, background: 'transparent', border: 'none', outline: 'none',
-              color: '#e2e8f0', fontSize: 11, fontFamily: 'inherit', fontWeight: 500,
-              minWidth: 0,
+              color: '#e2e8f0', fontSize: 13, fontWeight: 600,
+              fontFamily: 'inherit', minWidth: 0,
             }}
           />
-          {selected && (
-            <div style={{ display: 'flex', gap: 2, marginLeft: 'auto' }}>
-              <button
-                onMouseDown={e => { e.stopPropagation(); onDuplicate(node.id); }}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: 3, borderRadius: 4, lineHeight: 1 }}
-              >
-                <Copy size={11} />
-              </button>
-              <button
-                onMouseDown={e => { e.stopPropagation(); onDelete(node.id); }}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: 3, borderRadius: 4, lineHeight: 1 }}
-              >
-                <X size={11} />
-              </button>
-            </div>
-          )}
+          <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
+            <button onMouseDown={e => e.stopPropagation()} style={iconBtnStyle}><RefreshCw size={11} /></button>
+            <button onMouseDown={e => e.stopPropagation()} style={iconBtnStyle}><Settings size={11} /></button>
+            <button onMouseDown={e => { e.stopPropagation(); onDelete(node.id); }} style={{ ...iconBtnStyle, color: '#475569' }}><X size={11} /></button>
+          </div>
         </div>
 
+        {/* Body */}
         <div style={{ padding: '10px 12px 12px' }}>
-          {node.type === 'start' && (
-            <p style={{ color: '#94a3b8', fontSize: 11, margin: 0 }}>Entry point of the workflow</p>
-          )}
-          {(node.type === 'prompt' || node.type === 'collect') && (
-            <div>
-              <label style={{ fontSize: 9, color: '#64748b', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                {node.type === 'collect' ? 'Ask' : 'Message'}
-              </label>
+          {(node.type === 'conversation' || !node.type) && (
+            <>
+              <FieldLabel>First Message:</FieldLabel>
+              <textarea
+                value={node.data?.firstMessage || ''}
+                onChange={e => onUpdateNode(node.id, { data: { ...node.data, firstMessage: e.target.value } })}
+                onClick={e => e.stopPropagation()}
+                onMouseDown={e => e.stopPropagation()}
+                placeholder="What the AI says first…"
+                rows={3}
+                style={textareaStyle}
+              />
+              <div style={{ height: 10 }} />
+              <FieldLabel>Prompt:</FieldLabel>
               <textarea
                 value={node.data?.prompt || ''}
                 onChange={e => onUpdateNode(node.id, { data: { ...node.data, prompt: e.target.value } })}
                 onClick={e => e.stopPropagation()}
                 onMouseDown={e => e.stopPropagation()}
-                placeholder={node.type === 'collect' ? 'What to ask the caller…' : 'What the AI will say…'}
-                rows={3}
+                placeholder=""
+                rows={4}
                 style={{
-                  width: '100%', background: '#ffffff0a', border: '1px solid #ffffff15',
-                  borderRadius: 6, color: '#cbd5e1', fontSize: 11, fontFamily: 'inherit',
-                  padding: '6px 8px', resize: 'none', outline: 'none',
-                  lineHeight: 1.5, marginTop: 4, boxSizing: 'border-box',
+                  ...textareaStyle,
+                  color: node.data?.prompt ? '#cbd5e1' : '#ef4444',
                 }}
               />
-              {node.type === 'collect' && (
-                <div style={{ marginTop: 8 }}>
-                  <label style={{ fontSize: 9, color: '#64748b', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Entity</label>
-                  <input
-                    value={node.data?.entity || ''}
-                    onChange={e => onUpdateNode(node.id, { data: { ...node.data, entity: e.target.value } })}
-                    onClick={e => e.stopPropagation()}
-                    onMouseDown={e => e.stopPropagation()}
-                    placeholder="e.g. customer_name"
-                    style={{
-                      width: '100%', background: '#ffffff0a', border: '1px solid #ffffff15',
-                      borderRadius: 6, color: '#cbd5e1', fontSize: 11, fontFamily: 'inherit',
-                      padding: '5px 8px', outline: 'none', marginTop: 4, boxSizing: 'border-box',
-                    }}
-                  />
-                </div>
+              {!node.data?.prompt && (
+                <div style={{ color: '#ef4444', fontSize: 10, marginTop: 2 }}>No Prompt Specified</div>
               )}
-            </div>
+            </>
           )}
-          {node.type === 'action' && (
-            <div>
-              <label style={{ fontSize: 9, color: '#64748b', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Tool</label>
-              <input
-                value={node.data?.tool || ''}
-                onChange={e => onUpdateNode(node.id, { data: { ...node.data, tool: e.target.value } })}
-                onClick={e => e.stopPropagation()}
-                onMouseDown={e => e.stopPropagation()}
-                placeholder="e.g. blind_transfer, hangup_call"
-                style={{
-                  width: '100%', background: '#ffffff0a', border: '1px solid #ffffff15',
-                  borderRadius: 6, color: '#cbd5e1', fontSize: 11, fontFamily: 'inherit',
-                  padding: '5px 8px', outline: 'none', marginTop: 4, boxSizing: 'border-box',
-                }}
-              />
-            </div>
+          {node.type === 'transfer_call' && (
+            <>
+              <FieldLabel>Transfer to:</FieldLabel>
+              <input value={node.data?.destination || ''} onChange={e => onUpdateNode(node.id, { data: { ...node.data, destination: e.target.value } })} onClick={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} placeholder="+1 (555) 000-0000 or SIP URI" style={inputStyle} />
+            </>
           )}
-          {node.type === 'branch' && (
-            <div>
-              <label style={{ fontSize: 9, color: '#64748b', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                Conditions ({node.data?.conditions?.length || 0})
-              </label>
-              {(node.data?.conditions || []).map((c, i) => (
-                <div key={i} style={{ display: 'flex', gap: 4, marginTop: 4 }}>
-                  <input
-                    value={c.if || ''}
-                    onChange={e => {
-                      const conds = [...(node.data?.conditions || [])];
-                      conds[i] = { ...conds[i], if: e.target.value };
-                      onUpdateNode(node.id, { data: { ...node.data, conditions: conds } });
-                    }}
-                    onClick={e => e.stopPropagation()}
-                    onMouseDown={e => e.stopPropagation()}
-                    placeholder="{{var}} == 'value'"
-                    style={{
-                      flex: 1, background: '#ffffff0a', border: '1px solid #ffffff15',
-                      borderRadius: 5, color: '#cbd5e1', fontSize: 10, fontFamily: 'inherit',
-                      padding: '4px 7px', outline: 'none', boxSizing: 'border-box',
-                    }}
-                  />
-                  <button
-                    onMouseDown={e => { e.stopPropagation();
-                      const conds = (node.data?.conditions || []).filter((_, j) => j !== i);
-                      onUpdateNode(node.id, { data: { ...node.data, conditions: conds } });
-                    }}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#475569', padding: '0 4px' }}
-                  >
-                    <X size={10} />
-                  </button>
-                </div>
-              ))}
-              <button
-                onMouseDown={e => { e.stopPropagation();
-                  const conds = [...(node.data?.conditions || []), { if: '', goto: '' }];
-                  onUpdateNode(node.id, { data: { ...node.data, conditions: conds } });
-                }}
-                style={{
-                  marginTop: 6, background: 'none', border: 'none', cursor: 'pointer',
-                  color: '#22c55e', fontSize: 10, fontFamily: 'inherit', padding: 0,
-                  display: 'flex', alignItems: 'center', gap: 3,
-                }}
-              >
-                <Plus size={10} /> Add condition
-              </button>
-            </div>
+          {node.type === 'api_request' && (
+            <>
+              <FieldLabel>URL:</FieldLabel>
+              <input value={node.data?.url || ''} onChange={e => onUpdateNode(node.id, { data: { ...node.data, url: e.target.value } })} onClick={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} placeholder="https://api.example.com/endpoint" style={inputStyle} />
+              <div style={{ height: 8 }} />
+              <FieldLabel>Method:</FieldLabel>
+              <select value={node.data?.method || 'POST'} onChange={e => onUpdateNode(node.id, { data: { ...node.data, method: e.target.value } })} onClick={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} style={{ ...inputStyle, cursor: 'pointer' }}>
+                {['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].map(m => <option key={m}>{m}</option>)}
+              </select>
+            </>
           )}
+          {node.type === 'end_call' && (
+            <>
+              <FieldLabel>Farewell message:</FieldLabel>
+              <textarea value={node.data?.farewell || ''} onChange={e => onUpdateNode(node.id, { data: { ...node.data, farewell: e.target.value } })} onClick={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} placeholder="Goodbye! Have a great day." rows={2} style={textareaStyle} />
+            </>
+          )}
+          {node.type === 'tool' && (
+            <>
+              <FieldLabel>Tool name:</FieldLabel>
+              <input value={node.data?.toolName || ''} onChange={e => onUpdateNode(node.id, { data: { ...node.data, toolName: e.target.value } })} onClick={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} placeholder="e.g. check_availability" style={inputStyle} />
+            </>
+          )}
+
+          {/* Footer */}
+          <div style={{
+            display: 'flex', justifyContent: 'space-between',
+            marginTop: 12, paddingTop: 10,
+            borderTop: `1px solid ${t.color}20`,
+          }}>
+            <span style={{ color: '#475569', fontSize: 10 }}>Cost: <span style={{ color: '#64748b' }}>$0.09/min ▶</span></span>
+            <span style={{ color: '#475569', fontSize: 10 }}>Latency: <span style={{ color: '#64748b' }}>1.1s ▶</span></span>
+          </div>
         </div>
       </div>
 
-      {node.type !== 'branch' && (
-        <div
-          onMouseDown={e => { e.stopPropagation(); onPortMouseDown(e, node.id, 'output', 0); }}
-          style={{
-            position: 'absolute',
-            right: -8, top: '50%', transform: 'translateY(-50%)',
-            width: 16, height: 16, borderRadius: '50%',
-            background: '#1e293b', border: `2px solid ${col.accent}`,
-            cursor: 'crosshair', zIndex: 30,
-            transition: 'transform 0.1s, background 0.1s',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.background = col.accent; e.currentTarget.style.transform = 'translateY(-50%) scale(1.3)'; }}
-          onMouseLeave={e => { e.currentTarget.style.background = '#1e293b'; e.currentTarget.style.transform = 'translateY(-50%) scale(1)'; }}
-        />
-      )}
-
-      {node.type === 'branch' && (node.data?.conditions || []).map((c, i) => (
-        <div
-          key={i}
-          onMouseDown={e => { e.stopPropagation(); onPortMouseDown(e, node.id, 'branch', i); }}
-          style={{
-            position: 'absolute',
-            right: -8,
-            top: `${110 + i * 32}px`,
-            width: 14, height: 14, borderRadius: '50%',
-            background: '#1e293b', border: '2px solid #22c55e',
-            cursor: 'crosshair', zIndex: 30,
-          }}
-        />
-      ))}
-      {node.type === 'branch' && (
-        <div
-          onMouseDown={e => { e.stopPropagation(); onPortMouseDown(e, node.id, 'default', 0); }}
-          style={{
-            position: 'absolute', bottom: -8, left: '50%', transform: 'translateX(-50%)',
-            width: 14, height: 14, borderRadius: 3,
-            background: '#1e293b', border: '2px solid #22c55e',
-            cursor: 'crosshair', zIndex: 30,
-          }}
-        />
-      )}
-
-      {node.type !== 'start' && (
-        <div
-          onMouseUp={e => { e.stopPropagation(); onPortMouseUp(e, node.id); }}
-          style={{
-            position: 'absolute',
-            left: -8, top: '50%', transform: 'translateY(-50%)',
-            width: 16, height: 16, borderRadius: '50%',
-            background: isTarget ? col.accent : '#1e293b',
-            border: `2px solid ${isTarget ? col.accent : '#334155'}`,
-            cursor: 'crosshair', zIndex: 30,
-            transition: 'all 0.15s',
-            boxShadow: isTarget ? `0 0 8px ${col.accent}` : 'none',
-          }}
-        />
-      )}
+      {/* Output port — bottom center */}
+      <div
+        onMouseDown={e => { e.stopPropagation(); onOutputMouseDown(e, node.id); }}
+        style={{
+          position: 'absolute', bottom: -8, left: '50%',
+          transform: 'translateX(-50%)',
+          width: 16, height: 16, borderRadius: '50%',
+          background: '#0f172a', border: `2px solid ${t.color}`,
+          cursor: 'crosshair', zIndex: 30,
+          transition: 'transform 0.1s, background 0.1s',
+        }}
+        onMouseEnter={e => { e.currentTarget.style.background = t.color; e.currentTarget.style.transform = 'translateX(-50%) scale(1.4)'; }}
+        onMouseLeave={e => { e.currentTarget.style.background = '#0f172a'; e.currentTarget.style.transform = 'translateX(-50%) scale(1)'; }}
+      />
     </div>
   );
 };
 
-const WorkflowCanvas = ({ workflowName = 'New Workflow', initialData, onSave, onClose }) => {
-  const initialNodes = initialData?._canvas?.nodes || [
-    { id: 'start', type: 'start', x: 120, y: 200, data: {} },
-  ];
-  const initialEdges = initialData?._canvas?.edges || [];
+// ─── Add Node Panel ───────────────────────────────────────────────────────────
 
-  const [nodes, setNodes] = useState(initialNodes);
-  const [edges, setEdges] = useState(initialEdges);
+const AddPanel = ({ onAdd, onClose }) => (
+  <div style={{
+    position: 'absolute', left: 16, top: 56,
+    width: 300, background: '#0d1520',
+    border: '1px solid #1e2d3d', borderRadius: 12,
+    boxShadow: '0 16px 48px #000c', zIndex: 150,
+    fontFamily: 'inherit', overflow: 'hidden',
+  }}>
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      padding: '14px 16px 12px', borderBottom: '1px solid #1e2d3d',
+    }}>
+      <span style={{ color: '#e2e8f0', fontSize: 14, fontWeight: 600 }}>Add a Node</span>
+      <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#475569', lineHeight: 1 }}>
+        <X size={16} />
+      </button>
+    </div>
+    <div style={{ padding: '8px 0' }}>
+      {Object.entries(NODE_TYPES).map(([type, meta]) => (
+        <button
+          key={type}
+          onClick={() => { onAdd(type); onClose(); }}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 12,
+            width: '100%', padding: '10px 16px',
+            background: 'none', border: 'none', cursor: 'pointer',
+            color: '#cbd5e1', fontSize: 13, textAlign: 'left', fontFamily: 'inherit',
+          }}
+          onMouseEnter={e => e.currentTarget.style.background = '#ffffff08'}
+          onMouseLeave={e => e.currentTarget.style.background = 'none'}
+        >
+          <div style={{
+            width: 34, height: 34, borderRadius: 9,
+            background: meta.iconBg + 'cc',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 17, flexShrink: 0,
+          }}>
+            {meta.icon}
+          </div>
+          <span style={{ flex: 1 }}>{meta.label}</span>
+          <span style={{ fontSize: 10, color: '#2a3a4a', letterSpacing: '0.03em' }}>{meta.shortcut}</span>
+        </button>
+      ))}
+    </div>
+  </div>
+);
+
+// ─── Main Canvas ──────────────────────────────────────────────────────────────
+
+const WorkflowCanvas = ({
+  workflowName = 'Untitled Workflow',
+  initialNodes,
+  initialEdges,
+  onSave,
+  onClose,
+}) => {
+  const [nodes, setNodes] = useState(initialNodes || [
+    {
+      id: 'start',
+      type: 'conversation',
+      label: 'introduction',
+      isStart: true,
+      x: 460, y: 180,
+      data: { firstMessage: "Hello! I'm your assistant. How can I help you today?", prompt: '' },
+    },
+  ]);
+  const [edges, setEdges] = useState(initialEdges || []);
   const [selected, setSelected] = useState(null);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [dragging, setDragging] = useState(null);
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState(null);
-  const [connectingFrom, setConnectingFrom] = useState(null);
+  const [connecting, setConnecting] = useState(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-  const [showAddMenu, setShowAddMenu] = useState(false);
+  const [showAddPanel, setShowAddPanel] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [unsaved, setUnsaved] = useState(false);
 
   const canvasRef = useRef(null);
+  const mark = () => setUnsaved(true);
 
-  const toCanvas = useCallback((sx, sy) => ({
-    x: (sx - pan.x) / zoom,
-    y: (sy - pan.y) / zoom,
-  }), [pan, zoom]);
+  // Keyboard shortcuts
+  useEffect(() => {
+    const h = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey) {
+        const m = { c: 'conversation', a: 'api_request', f: 'transfer_call', e: 'end_call', o: 'tool' };
+        if (m[e.key.toLowerCase()]) { addNode(m[e.key.toLowerCase()]); e.preventDefault(); }
+      }
+      if (e.key === 'Escape') { setConnecting(null); setSelected(null); setShowAddPanel(false); }
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selected && e.target === document.body) deleteNode(selected);
+    };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [selected]);
 
-  const getNodeRect = (node) => ({
-    x: node.x, y: node.y,
-    w: NODE_WIDTH, h: 160,
-    cx: node.x + NODE_WIDTH, cy: node.y + 80,
-  });
   const handleDragStart = useCallback((e, nodeId) => {
-    if (connectingFrom) return;
-    const node = nodes.find(n => n.id === nodeId);
+    if (connecting) return;
     const rect = canvasRef.current.getBoundingClientRect();
+    const node = nodes.find(n => n.id === nodeId);
     const cx = (e.clientX - rect.left - pan.x) / zoom;
     const cy = (e.clientY - rect.top - pan.y) / zoom;
-    setDragging({ nodeId, offsetX: cx - node.x, offsetY: cy - node.y });
-  }, [nodes, pan, zoom, connectingFrom]);
+    setDragging({ nodeId, ox: cx - node.x, oy: cy - node.y });
+  }, [nodes, pan, zoom, connecting]);
 
   const handleCanvasMouseDown = useCallback((e) => {
-    if (e.button === 1 || e.button === 2 || e.altKey) {
+    if (e.button === 1 || e.altKey) {
       setIsPanning(true);
       setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
       e.preventDefault();
-    } else {
+    } else if (e.button === 0) {
       setSelected(null);
-      setShowAddMenu(false);
+      setShowAddPanel(false);
+      if (connecting) setConnecting(null);
     }
-  }, [pan]);
+  }, [pan, connecting]);
 
   const handleMouseMove = useCallback((e) => {
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
-    const sx = e.clientX - rect.left;
-    const sy = e.clientY - rect.top;
-    setMousePos({ x: sx, y: sy });
-
+    setMousePos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
     if (dragging) {
-      const cx = (sx - pan.x) / zoom;
-      const cy = (sy - pan.y) / zoom;
-      setNodes(prev => prev.map(n =>
-        n.id === dragging.nodeId
-          ? { ...n, x: snapToGrid(cx - dragging.offsetX), y: snapToGrid(cy - dragging.offsetY) }
-          : n
-      ));
+      const cx = (e.clientX - rect.left - pan.x) / zoom;
+      const cy = (e.clientY - rect.top - pan.y) / zoom;
+      setNodes(prev => prev.map(n => n.id === dragging.nodeId
+        ? { ...n, x: snap(cx - dragging.ox), y: snap(cy - dragging.oy) } : n));
+      mark();
     }
-    if (isPanning && panStart) {
-      setPan({ x: e.clientX - panStart.x, y: e.clientY - panStart.y });
-    }
+    if (isPanning && panStart) setPan({ x: e.clientX - panStart.x, y: e.clientY - panStart.y });
   }, [dragging, isPanning, panStart, pan, zoom]);
 
-  const handleMouseUp = useCallback(() => {
-    setDragging(null);
-    setIsPanning(false);
-    if (connectingFrom) setConnectingFrom(null);
-  }, [connectingFrom]);
+  const handleMouseUp = useCallback(() => { setDragging(null); setIsPanning(false); }, []);
 
   const handleWheel = useCallback((e) => {
     e.preventDefault();
-    const delta = e.deltaY > 0 ? 0.9 : 1.1;
-    setZoom(z => Math.min(Math.max(z * delta, 0.3), 2.5));
+    setZoom(z => Math.min(Math.max(z * (e.deltaY > 0 ? 0.9 : 1.1), 0.25), 2.5));
   }, []);
 
   useEffect(() => {
@@ -377,115 +449,98 @@ const WorkflowCanvas = ({ workflowName = 'New Workflow', initialData, onSave, on
     return () => el.removeEventListener('wheel', handleWheel);
   }, [handleWheel]);
 
-  const handlePortMouseDown = useCallback((e, nodeId, portType, portIndex) => {
+  const handleOutputMouseDown = useCallback((e, fromId) => {
     e.stopPropagation();
-    setConnectingFrom({ nodeId, portType, portIndex });
+    setConnecting({ fromId });
   }, []);
 
-  const handlePortMouseUp = useCallback((e, targetNodeId) => {
-    if (!connectingFrom) return;
-    if (connectingFrom.nodeId === targetNodeId) { setConnectingFrom(null); return; }
+  const handleInputMouseUp = useCallback((toId) => {
+    if (!connecting || connecting.fromId === toId) { setConnecting(null); return; }
     setEdges(prev => {
-      const existing = prev.find(ed =>
-        ed.from === connectingFrom.nodeId &&
-        ed.portType === connectingFrom.portType &&
-        ed.portIndex === connectingFrom.portIndex
-      );
-      const newEdge = {
-        id: generateId(),
-        from: connectingFrom.nodeId,
-        to: targetNodeId,
-        portType: connectingFrom.portType,
-        portIndex: connectingFrom.portIndex,
-      };
-      if (existing) return prev.map(ed => ed.id === existing.id ? newEdge : ed);
-      return [...prev, newEdge];
+      if (prev.find(ed => ed.from === connecting.fromId && ed.to === toId)) return prev;
+      return [...prev, { id: uid(), from: connecting.fromId, to: toId, label: '' }];
     });
-    setConnectingFrom(null);
-  }, [connectingFrom]);
+    setConnecting(null);
+    mark();
+  }, [connecting]);
 
   const addNode = (type) => {
-    const id = generateId();
-    const center = toCanvas(
-      canvasRef.current.clientWidth / 2,
-      canvasRef.current.clientHeight / 2
-    );
+    const rect = canvasRef.current?.getBoundingClientRect();
+    const cx = rect ? (rect.width / 2 - pan.x) / zoom : 300;
+    const cy = rect ? (rect.height / 2 - pan.y) / zoom : 300;
+    const id = uid();
     setNodes(prev => [...prev, {
-      id, type,
-      x: snapToGrid(center.x - NODE_WIDTH / 2 + Math.random() * 60 - 30),
-      y: snapToGrid(center.y - 80 + Math.random() * 60 - 30),
-      data: type === 'branch' ? { conditions: [] } : {},
+      id, type, label: NODE_TYPES[type]?.label || type,
+      x: snap(cx - NODE_W / 2 + (Math.random() * 80 - 40)),
+      y: snap(cy - 120 + (Math.random() * 80 - 40)),
+      data: {},
     }]);
     setSelected(id);
-    setShowAddMenu(false);
+    mark();
   };
 
   const deleteNode = (id) => {
     setNodes(prev => prev.filter(n => n.id !== id));
     setEdges(prev => prev.filter(e => e.from !== id && e.to !== id));
     if (selected === id) setSelected(null);
-  };
-
-  const duplicateNode = (id) => {
-    const node = nodes.find(n => n.id === id);
-    if (!node) return;
-    const newId = generateId();
-    setNodes(prev => [...prev, { ...JSON.parse(JSON.stringify(node)), id: newId, x: node.x + 40, y: node.y + 40 }]);
-    setSelected(newId);
+    mark();
   };
 
   const updateNode = (id, updates) => {
     setNodes(prev => prev.map(n => n.id === id ? { ...n, ...updates } : n));
+    mark();
   };
 
-  const getPortPos = (node, portType, portIndex) => {
-    const h = node.type === 'branch'
-      ? 80 + (node.data?.conditions?.length || 0) * 32 + 60
-      : 160;
-    if (portType === 'output') return { x: node.x + NODE_WIDTH + 8, y: node.y + h / 2 };
-    if (portType === 'branch') return { x: node.x + NODE_WIDTH + 8, y: node.y + 110 + portIndex * 32 };
-    if (portType === 'default') return { x: node.x + NODE_WIDTH / 2, y: node.y + h + 8 };
-    return { x: node.x - 8, y: node.y + h / 2 };
-  };
+  const deleteEdge = (id) => { setEdges(prev => prev.filter(e => e.id !== id)); mark(); };
+
+  const nodeH = (node) => ({ conversation: 300, api_request: 220, transfer_call: 180, end_call: 180, tool: 180 }[node.type] || 280);
+  const outPos = (node) => ({ x: node.x + NODE_W / 2, y: node.y + nodeH(node) + 8 });
+  const inPos = (node) => ({ x: node.x + NODE_W / 2, y: node.y - 8 });
+
+  const draftPath = connecting ? (() => {
+    const fn = nodes.find(n => n.id === connecting.fromId);
+    if (!fn) return null;
+    const fp = outPos(fn);
+    return bezier(fp.x, fp.y, (mousePos.x - pan.x) / zoom, (mousePos.y - pan.y) / zoom);
+  })() : null;
 
   const fitView = () => {
-    if (nodes.length === 0) return;
+    if (!nodes.length || !canvasRef.current) return;
     const xs = nodes.map(n => n.x), ys = nodes.map(n => n.y);
-    const minX = Math.min(...xs) - 60, minY = Math.min(...ys) - 60;
-    const maxX = Math.max(...xs) + NODE_WIDTH + 60, maxY = Math.max(...ys) + 200;
+    const minX = Math.min(...xs) - 80, minY = Math.min(...ys) - 80;
+    const maxX = Math.max(...xs) + NODE_W + 80, maxY = Math.max(...ys) + 360;
     const vw = canvasRef.current.clientWidth, vh = canvasRef.current.clientHeight;
-    const z = Math.min(vw / (maxX - minX), vh / (maxY - minY), 1.5);
+    const z = Math.min(vw / (maxX - minX), vh / (maxY - minY), 1.2);
     setZoom(z);
     setPan({ x: -minX * z + (vw - (maxX - minX) * z) / 2, y: -minY * z + (vh - (maxY - minY) * z) / 2 });
   };
 
-  const draftLine = connectingFrom ? (() => {
-    const fromNode = nodes.find(n => n.id === connectingFrom.nodeId);
-    if (!fromNode) return null;
-    const fp = getPortPos(fromNode, connectingFrom.portType, connectingFrom.portIndex);
-    const mx = (mousePos.x - pan.x) / zoom;
-    const my = (mousePos.y - pan.y) / zoom;
-    return cubicPath(fp.x, fp.y, mx, my);
-  })() : null;
-
   const handleSave = async () => {
     setSaving(true);
-    const steps = nodes
-      .filter(n => n.type !== 'start')
-      .map(n => {
-        const outEdge = edges.find(e => e.from === n.id && e.portType === 'output');
-        return {
-          id: n.id,
-          type: n.type,
-          ...n.data,
-          next: outEdge?.to,
-        };
-      });
-    await onSave?.({ steps, _canvas: { nodes, edges } });
+    const steps = nodes.filter(n => !n.isStart).map(n => ({
+      id: n.id, type: n.type, label: n.label, ...n.data,
+      next: edges.find(e => e.from === n.id)?.to,
+    }));
+    await onSave?.({ steps, nodes, edges });
     setSaving(false);
+    setUnsaved(false);
   };
 
-  const ADD_TYPES = ['prompt', 'collect', 'action', 'branch'];
+  const toolbarBtns = [
+    { icon: '⚙', title: 'Settings' },
+    { icon: '⊞', title: 'Grid' },
+    { icon: <RotateCcw size={14} />, title: 'Undo' },
+    { icon: '↻', title: 'Redo' },
+    null,
+    { icon: <ArrowLeftRight size={14} />, title: 'Auto-layout' },
+    null,
+    { icon: <ZoomOut size={14} />, title: 'Zoom out', action: () => setZoom(z => Math.max(z * 0.8, 0.25)) },
+    { icon: <ZoomIn size={14} />, title: 'Zoom in', action: () => setZoom(z => Math.min(z * 1.2, 2.5)) },
+    { icon: <Maximize2 size={14} />, title: 'Fit view', action: fitView },
+    null,
+    { icon: '↖', title: 'Select' },
+    { icon: '✋', title: 'Pan' },
+  ];
 
   return (
     <div style={{
@@ -493,234 +548,231 @@ const WorkflowCanvas = ({ workflowName = 'New Workflow', initialData, onSave, on
       display: 'flex', flexDirection: 'column',
       fontFamily: "'IBM Plex Mono', monospace",
     }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap');`}</style>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+        @keyframes spin { to { transform: rotate(360deg); } }
+        * { box-sizing: border-box; }
+      `}</style>
 
+      {/* Top bar */}
       <div style={{
-        display: 'flex', alignItems: 'center', gap: 12,
-        padding: '0 16px', height: 52,
-        background: '#0d1420', borderBottom: '1px solid #1e2d3d',
-        flexShrink: 0,
+        display: 'flex', alignItems: 'center', gap: 10,
+        padding: '0 16px', height: 52, flexShrink: 0,
+        background: '#0a0f1a', borderBottom: '1px solid #131d2b', zIndex: 200,
       }}>
-        <button
-          onClick={onClose}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#475569', padding: 6, borderRadius: 6, lineHeight: 1 }}
-        >
-          <X size={16} />
-        </button>
-        <div style={{ width: 1, height: 24, background: '#1e2d3d' }} />
+        {onClose && (
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#475569', padding: '4px 8px', lineHeight: 1, borderRadius: 6, fontSize: 18 }}>
+            ←
+          </button>
+        )}
         <span style={{ color: '#94a3b8', fontSize: 13, fontWeight: 500 }}>{workflowName}</span>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
-          <span style={{ color: '#475569', fontSize: 11 }}>
-            {nodes.length} nodes · {edges.length} edges
-          </span>
-          <div style={{ width: 1, height: 24, background: '#1e2d3d' }} />
-          <button
-            onClick={fitView}
-            style={{ background: '#0d1a2a', border: '1px solid #1e2d3d', cursor: 'pointer', color: '#64748b', padding: '6px 10px', borderRadius: 6, fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}
-          >
-            <Maximize2 size={12} /> Fit
+
+        {unsaved && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            background: '#1a120060', border: '1px solid #f59e0b40',
+            borderRadius: 20, padding: '3px 12px',
+            color: '#f59e0b', fontSize: 11, marginLeft: 6,
+          }}>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#f59e0b' }} />
+            Unsaved changes
+          </div>
+        )}
+
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button style={{
+            background: 'none', border: '1px solid #1e2d3d', borderRadius: 7,
+            cursor: 'pointer', color: '#64748b', padding: '6px 12px',
+            fontSize: 11, display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'inherit',
+          }}>
+            <Code2 size={13} />
+          </button>
+          <button style={{
+            background: 'none', border: '1px solid #22c55e50', borderRadius: 7,
+            cursor: 'pointer', color: '#22c55e', padding: '6px 14px',
+            fontSize: 12, fontWeight: 500,
+            display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'inherit',
+          }}>
+            📞 Call <ChevronDown size={12} />
           </button>
           <button
-            onClick={handleSave}
-            disabled={saving}
+            onClick={handleSave} disabled={saving}
             style={{
-              background: '#10b981', border: 'none', cursor: 'pointer',
-              color: '#fff', padding: '7px 16px', borderRadius: 7,
+              background: '#10b981', border: 'none', borderRadius: 7,
+              cursor: 'pointer', color: '#fff', padding: '7px 18px',
               fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6,
-              opacity: saving ? 0.7 : 1,
+              fontFamily: 'inherit', opacity: saving ? 0.7 : 1,
             }}
           >
             {saving ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={13} />}
             Save
           </button>
+          <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#475569', padding: 6 }}>
+            <MoreHorizontal size={16} />
+          </button>
         </div>
       </div>
 
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
+      {/* Canvas area */}
+      <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+
+        {/* Add a Node button */}
+        <button
+          onClick={() => setShowAddPanel(v => !v)}
+          style={{
+            position: 'absolute', left: 16, top: 12, zIndex: 120,
+            display: 'flex', alignItems: 'center', gap: 8,
+            background: showAddPanel ? '#10b98118' : '#0d1a2a',
+            border: `1px solid ${showAddPanel ? '#10b981' : '#1e2d3d'}`,
+            borderRadius: 8, cursor: 'pointer',
+            color: showAddPanel ? '#10b981' : '#94a3b8',
+            padding: '8px 14px', fontSize: 13, fontWeight: 500, fontFamily: 'inherit',
+          }}
+        >
+          <Plus size={15} /> Add a Node
+        </button>
+
+        {showAddPanel && <AddPanel onAdd={addNode} onClose={() => setShowAddPanel(false)} />}
+
+        {/* Bottom toolbar */}
         <div style={{
-          width: 52, background: '#0d1420', borderRight: '1px solid #1e2d3d',
-          display: 'flex', flexDirection: 'column', alignItems: 'center',
-          padding: '12px 0', gap: 6, flexShrink: 0,
+          position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)',
+          display: 'flex', alignItems: 'center', gap: 2,
+          background: '#0a0f1a', border: '1px solid #131d2b',
+          borderRadius: 12, padding: '5px 8px', zIndex: 100,
         }}>
-          <div style={{ position: 'relative' }}>
-            <button
-              onClick={() => setShowAddMenu(v => !v)}
-              title="Add Node"
-              style={{
-                width: 36, height: 36, borderRadius: 8, cursor: 'pointer',
-                background: showAddMenu ? '#10b98120' : '#0d2035',
-                border: `1px solid ${showAddMenu ? '#10b981' : '#1e2d3d'}`,
-                color: showAddMenu ? '#10b981' : '#64748b',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}
-            >
-              <Plus size={16} />
-            </button>
-            {showAddMenu && (
-              <div style={{
-                position: 'absolute', left: 44, top: 0,
-                background: '#0d1a2a', border: '1px solid #1e2d3d',
-                borderRadius: 10, overflow: 'hidden', zIndex: 200,
-                minWidth: 160, boxShadow: '0 8px 32px #000a',
-              }}>
-                {ADD_TYPES.map(type => {
-                  const col = NODE_COLORS[type];
-                  return (
-                    <button
-                      key={type}
-                      onClick={() => addNode(type)}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 10,
-                        width: '100%', padding: '10px 14px',
-                        background: 'none', border: 'none', cursor: 'pointer',
-                        color: '#cbd5e1', fontSize: 12, textAlign: 'left',
-                        fontFamily: 'inherit',
-                      }}
-                      onMouseEnter={e => e.currentTarget.style.background = '#ffffff08'}
-                      onMouseLeave={e => e.currentTarget.style.background = 'none'}
-                    >
-                      <span style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        width: 24, height: 24, borderRadius: 6,
-                        background: col.accent + '20', color: col.accent,
-                      }}>
-                        {NODE_ICONS[type]}
-                      </span>
-                      {col.label}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-          <div style={{ height: 1, width: 28, background: '#1e2d3d', margin: '2px 0' }} />
-          <button
-            onClick={() => setZoom(z => Math.min(z * 1.2, 2.5))}
-            title="Zoom in"
-            style={{ width: 36, height: 36, borderRadius: 8, cursor: 'pointer', background: '#0d2035', border: '1px solid #1e2d3d', color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          >
-            <ZoomIn size={14} />
-          </button>
-          <button
-            onClick={() => setZoom(z => Math.max(z * 0.8, 0.3))}
-            title="Zoom out"
-            style={{ width: 36, height: 36, borderRadius: 8, cursor: 'pointer', background: '#0d2035', border: '1px solid #1e2d3d', color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          >
-            <ZoomOut size={14} />
-          </button>
-          <button
-            onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}
-            title="Reset view"
-            style={{ width: 36, height: 36, borderRadius: 8, cursor: 'pointer', background: '#0d2035', border: '1px solid #1e2d3d', color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          >
-            <RotateCcw size={13} />
-          </button>
+          {toolbarBtns.map((item, i) =>
+            item === null
+              ? <div key={i} style={{ width: 1, height: 18, background: '#1e2d3d', margin: '0 3px' }} />
+              : (
+                <button key={i} title={item.title} onClick={item.action}
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    color: '#475569', padding: '5px 7px', borderRadius: 6,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    lineHeight: 1, fontSize: 13,
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.color = '#94a3b8'; e.currentTarget.style.background = '#ffffff0a'; }}
+                  onMouseLeave={e => { e.currentTarget.style.color = '#475569'; e.currentTarget.style.background = 'none'; }}
+                >
+                  {item.icon}
+                </button>
+              )
+          )}
         </div>
 
+        {/* Canvas */}
         <div
           ref={canvasRef}
-          style={{ flex: 1, position: 'relative', overflow: 'hidden', cursor: isPanning ? 'grabbing' : connectingFrom ? 'crosshair' : 'default' }}
+          style={{
+            width: '100%', height: '100%', overflow: 'hidden',
+            cursor: isPanning ? 'grabbing' : connecting ? 'crosshair' : 'default',
+          }}
           onMouseDown={handleCanvasMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
         >
+          {/* Dot grid */}
           <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
             <defs>
-              <pattern id="dotgrid" x={pan.x % (SNAP_GRID * zoom)} y={pan.y % (SNAP_GRID * zoom)} width={SNAP_GRID * zoom} height={SNAP_GRID * zoom} patternUnits="userSpaceOnUse">
-                <circle cx={SNAP_GRID * zoom / 2} cy={SNAP_GRID * zoom / 2} r={0.8} fill="#1e2d3d" />
+              <pattern
+                id="dotgrid"
+                x={pan.x % (16 * zoom)} y={pan.y % (16 * zoom)}
+                width={16 * zoom} height={16 * zoom}
+                patternUnits="userSpaceOnUse"
+              >
+                <circle cx={8 * zoom} cy={8 * zoom} r={0.7} fill="#1a2535" />
               </pattern>
             </defs>
             <rect width="100%" height="100%" fill="url(#dotgrid)" />
           </svg>
 
+          {/* World transform */}
           <div style={{
             position: 'absolute', inset: 0, transformOrigin: '0 0',
             transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
           }}>
+            {/* Edges SVG */}
             <svg style={{ position: 'absolute', inset: 0, width: '9999px', height: '9999px', overflow: 'visible', pointerEvents: 'none' }}>
               <defs>
-                {Object.entries(NODE_COLORS).map(([type, col]) => (
-                  <marker key={type} id={`arrow-${type}`} markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
-                    <path d="M0,0 L0,6 L8,3 z" fill={col.accent} />
-                  </marker>
-                ))}
-                <marker id="arrow-default" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
-                  <path d="M0,0 L0,6 L8,3 z" fill="#475569" />
+                <marker id="arr" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto">
+                  <path d="M0,0 L0,6 L7,3 z" fill="#2a3d52" />
+                </marker>
+                <marker id="arr-draft" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto">
+                  <path d="M0,0 L0,6 L7,3 z" fill="#475569" />
                 </marker>
               </defs>
 
               {edges.map(edge => {
-                const fromNode = nodes.find(n => n.id === edge.from);
-                const toNode = nodes.find(n => n.id === edge.to);
-                if (!fromNode || !toNode) return null;
-                const fp = getPortPos(fromNode, edge.portType, edge.portIndex);
-                const tp = getPortPos(toNode, 'input', 0);
-                const col = NODE_COLORS[fromNode.type] || NODE_COLORS.prompt;
+                const fn = nodes.find(n => n.id === edge.from);
+                const tn = nodes.find(n => n.id === edge.to);
+                if (!fn || !tn) return null;
+                const fp = outPos(fn), tp = inPos(tn);
+                const mx = (fp.x + tp.x) / 2, my = (fp.y + tp.y) / 2;
+                const d = bezier(fp.x, fp.y, tp.x, tp.y);
                 return (
-                  <g key={edge.id}>
-                    <path
-                      d={cubicPath(fp.x, fp.y, tp.x, tp.y)}
-                      fill="none" stroke={col.accent + '40'} strokeWidth={6}
-                      style={{ cursor: 'pointer', pointerEvents: 'stroke' }}
-                      onClick={() => setEdges(prev => prev.filter(e => e.id !== edge.id))}
-                    />
-                    <path
-                      d={cubicPath(fp.x, fp.y, tp.x, tp.y)}
-                      fill="none" stroke={col.accent} strokeWidth={1.5}
-                      strokeDasharray="0"
-                      markerEnd={`url(#arrow-${fromNode.type})`}
-                      style={{ pointerEvents: 'none' }}
-                    />
+                  <g key={edge.id} style={{ pointerEvents: 'all' }}>
+                    <path d={d} fill="none" stroke="transparent" strokeWidth={14} style={{ cursor: 'pointer' }} onClick={() => deleteEdge(edge.id)} />
+                    <path d={d} fill="none" stroke="#1e3a52" strokeWidth={1.5} markerEnd="url(#arr)" />
+                    <EdgeLabel x={mx} y={my} label={edge.label} onDelete={() => deleteEdge(edge.id)} />
                   </g>
                 );
               })}
 
-              {draftLine && (
-                <path d={draftLine} fill="none" stroke="#475569" strokeWidth={1.5} strokeDasharray="6 3" />
+              {draftPath && (
+                <path d={draftPath} fill="none" stroke="#475569" strokeWidth={1.5} strokeDasharray="6 4" markerEnd="url(#arr-draft)" />
               )}
             </svg>
 
+            {/* Nodes */}
             {nodes.map(node => (
-              <WorkflowNode
+              <VNode
                 key={node.id}
                 node={node}
                 selected={selected === node.id}
                 onSelect={setSelected}
                 onDragStart={handleDragStart}
-                onPortMouseDown={handlePortMouseDown}
-                onPortMouseUp={handlePortMouseUp}
-                connectingFrom={connectingFrom}
+                onOutputMouseDown={handleOutputMouseDown}
+                onInputMouseUp={handleInputMouseUp}
+                isConnecting={!!connecting}
                 onDelete={deleteNode}
-                onDuplicate={duplicateNode}
                 onUpdateNode={updateNode}
               />
             ))}
           </div>
+        </div>
 
-          <div style={{
-            position: 'absolute', bottom: 16, right: 16,
-            background: '#0d1a2a', border: '1px solid #1e2d3d',
-            borderRadius: 6, padding: '4px 10px',
-            color: '#475569', fontSize: 11,
-          }}>
-            {Math.round(zoom * 100)}%
+        {/* Zoom % */}
+        <div style={{
+          position: 'absolute', bottom: 16, right: 16,
+          background: '#0a0f1a', border: '1px solid #131d2b',
+          borderRadius: 6, padding: '4px 10px',
+          color: '#2a3d52', fontSize: 11, zIndex: 100,
+        }}>
+          {Math.round(zoom * 100)}%
+        </div>
+
+        {/* Mini-map */}
+        <div style={{
+          position: 'absolute', bottom: 16, right: 70,
+          width: 100, height: 66,
+          background: '#0a0f1a', border: '1px solid #131d2b',
+          borderRadius: 8, overflow: 'hidden', zIndex: 100,
+        }}>
+          <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+            {nodes.map((n, i) => (
+              <div key={i} style={{
+                position: 'absolute',
+                left: Math.max(0, Math.min(84, (n.x / 1400) * 100)),
+                top: Math.max(0, Math.min(50, (n.y / 900) * 66)),
+                width: 16, height: 10, borderRadius: 2,
+                background: (NODE_TYPES[n.type]?.color || '#3b82f6') + '50',
+              }} />
+            ))}
           </div>
-
-          {nodes.length <= 1 && (
-            <div style={{
-              position: 'absolute', bottom: 60, left: '50%', transform: 'translateX(-50%)',
-              color: '#334155', fontSize: 12, textAlign: 'center', pointerEvents: 'none',
-            }}>
-              Click <span style={{ color: '#10b981' }}>+</span> to add nodes · Drag ports to connect
-            </div>
-          )}
         </div>
       </div>
-
-      <style>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-      `}</style>
     </div>
   );
 };
