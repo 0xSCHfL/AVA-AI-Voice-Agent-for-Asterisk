@@ -1,8 +1,21 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import axios from 'axios';
 import { toast } from 'sonner';
-import { Plus, Trash2, Search, Filter, Code, MoreVertical, Loader2, Workflow as WorkflowIcon } from 'lucide-react';
+import { Plus, Trash2, Search, Filter, Code, MoreVertical, Loader2, Workflow as WorkflowIcon, ChevronDown, Pencil, Copy, ArrowUpDown, ArrowUp, ArrowDown, Clock, BarChart3 } from 'lucide-react';
 import WorkflowCanvas from '../components/WorkflowCanvas';
+
+type SortOption = 'name_asc' | 'name_desc' | 'created_desc' | 'created_asc' | 'updated_desc' | 'updated_asc' | 'steps_desc' | 'steps_asc';
+
+const SORT_OPTIONS: { value: SortOption; label: string; icon: React.ReactNode }[] = [
+  { value: 'name_asc', label: 'Name (A-Z)', icon: <ArrowUpDown className="w-4 h-4" /> },
+  { value: 'name_desc', label: 'Name (Z-A)', icon: <ArrowUpDown className="w-4 h-4" /> },
+  { value: 'created_desc', label: 'Recently Created', icon: <Clock className="w-4 h-4" /> },
+  { value: 'created_asc', label: 'Oldest First', icon: <Clock className="w-4 h-4" /> },
+  { value: 'updated_desc', label: 'Recently Updated', icon: <Clock className="w-4 h-4" /> },
+  { value: 'updated_asc', label: 'Least Recently Updated', icon: <Clock className="w-4 h-4" /> },
+  { value: 'steps_desc', label: 'Most Steps', icon: <BarChart3 className="w-4 h-4" /> },
+  { value: 'steps_asc', label: 'Fewest Steps', icon: <BarChart3 className="w-4 h-4" /> },
+];
 
 const WorkflowsPage = () => {
   const [workflowNames, setWorkflowNames] = useState([]);
@@ -10,10 +23,23 @@ const WorkflowsPage = () => {
   const [loading, setLoading] = useState(true);
   const [canvasWorkflow, setCanvasWorkflow] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState<'recent' | 'name' | 'updated'>('recent');
+  const [sortBy, setSortBy] = useState<SortOption>('created_desc');
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
+  const [sortMenuOpen, setSortMenuOpen] = useState(false);
+  const sortMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { fetchWorkflows(); }, []);
+
+  // Close sort menu on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (sortMenuRef.current && !sortMenuRef.current.contains(e.target as Node)) {
+        setSortMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const fetchWorkflows = async () => {
     try {
@@ -85,6 +111,34 @@ const WorkflowsPage = () => {
     }
   };
 
+  const handleDuplicate = async (name: string) => {
+    const source = workflowsData[name];
+    if (!source) return;
+    const newName = `${name}_copy`;
+    if (workflowNames.includes(newName)) {
+      toast.error('Duplicate name already exists');
+      return;
+    }
+    try {
+      await axios.put(`/api/workflows/${newName}`, {
+        name: newName,
+        description: source.description || '',
+        version: source.version || '1.0',
+        variables: source.variables || {},
+        steps: source.steps || [],
+        canvas: source.canvas || null,
+        global_prompt: source.global_prompt || '',
+        global_voice_provider: source.global_voice_provider || 'Vapi',
+        global_voice_name: source.global_voice_name || 'Elliot',
+        context: source.context || null,
+      });
+      toast.success(`Workflow duplicated as ${newName}`);
+      fetchWorkflows();
+    } catch (err: any) {
+      toast.error('Failed to duplicate workflow');
+    }
+  };
+
   const handleDelete = async (name: string) => {
     try {
       await axios.delete(`/api/workflows/${name}`);
@@ -102,15 +156,30 @@ const WorkflowsPage = () => {
       .filter(({ name }) => name.toLowerCase().includes(searchQuery.toLowerCase()));
 
     switch (sortBy) {
-      case 'name':
+      case 'name_asc':
         result.sort((a, b) => a.name.localeCompare(b.name));
         break;
-      case 'updated':
-        result.sort((a, b) => (b.data?.updated_at || '').localeCompare(a.data?.updated_at || ''));
+      case 'name_desc':
+        result.sort((a, b) => b.name.localeCompare(a.name));
         break;
-      case 'recent':
-      default:
-        result.sort((a, b) => (b.data?.created_at || '').localeCompare(a.data?.created_at || ''));
+      case 'created_desc':
+        result.sort((a, b) => (b.data?.created_at || getWorkflowDate(b.name)).localeCompare(a.data?.created_at || getWorkflowDate(a.name)));
+        break;
+      case 'created_asc':
+        result.sort((a, b) => (a.data?.created_at || getWorkflowDate(a.name)).localeCompare(b.data?.created_at || getWorkflowDate(b.name)));
+        break;
+      case 'updated_desc':
+        result.sort((a, b) => (b.data?.updated_at || getWorkflowDate(b.name)).localeCompare(a.data?.updated_at || getWorkflowDate(a.name)));
+        break;
+      case 'updated_asc':
+        result.sort((a, b) => (a.data?.updated_at || getWorkflowDate(a.name)).localeCompare(b.data?.updated_at || getWorkflowDate(b.name)));
+        break;
+      case 'steps_desc':
+        result.sort((a, b) => (b.data?.steps?.length || 0) - (a.data?.steps?.length || 0));
+        break;
+      case 'steps_asc':
+        result.sort((a, b) => (a.data?.steps?.length || 0) - (b.data?.steps?.length || 0));
+        break;
     }
     return result;
   }, [workflowNames, workflowsData, searchQuery, sortBy]);
@@ -126,7 +195,6 @@ const WorkflowsPage = () => {
     }
   };
 
-  // Get current date for created/updated (using workflow name timestamp for demo)
   const getWorkflowDate = (name: string) => {
     const timestamp = name.replace('workflow_', '');
     if (/^\d+$/.test(timestamp)) {
@@ -134,6 +202,8 @@ const WorkflowsPage = () => {
     }
     return new Date().toISOString();
   };
+
+  const currentSortLabel = SORT_OPTIONS.find(o => o.value === sortBy)?.label || 'Sort';
 
   if (canvasWorkflow !== null) {
     const wf = workflowsData[canvasWorkflow] || {};
@@ -199,15 +269,38 @@ const WorkflowsPage = () => {
             <Filter className="w-4 h-4" />
             Filter
           </button>
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as any)}
-            className="px-3 py-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-sm text-gray-600 dark:text-gray-400 focus:outline-none focus:border-primary cursor-pointer"
-          >
-            <option value="recent">Recently Created</option>
-            <option value="name">Name A-Z</option>
-            <option value="updated">Recently Updated</option>
-          </select>
+          {/* Sort Dropdown */}
+          <div className="relative" ref={sortMenuRef}>
+            <button
+              onClick={() => setSortMenuOpen(!sortMenuOpen)}
+              className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:border-gray-400 dark:hover:border-gray-600 transition-colors"
+            >
+              <span>{currentSortLabel}</span>
+              <ChevronDown className={`w-4 h-4 transition-transform ${sortMenuOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {sortMenuOpen && (
+              <div className="absolute right-0 top-full mt-1 bg-gray-900 dark:bg-gray-800 border border-gray-700 rounded-lg shadow-xl py-1 min-w-48 z-20">
+                {SORT_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    className={`w-full px-4 py-2 text-left text-sm flex items-center gap-3 hover:bg-gray-800 transition-colors ${
+                      sortBy === option.value ? 'text-primary' : 'text-gray-300'
+                    }`}
+                    onClick={() => {
+                      setSortBy(option.value);
+                      setSortMenuOpen(false);
+                    }}
+                  >
+                    {option.icon}
+                    <span className="flex-1">{option.label}</span>
+                    {sortBy === option.value && (
+                      <span className="text-primary">✓</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -274,7 +367,7 @@ const WorkflowsPage = () => {
                     <span className="text-gray-700 dark:text-gray-300 font-mono">{data.steps?.length || 0}</span>
                   </td>
                   <td className="py-4 px-6 text-gray-500 dark:text-gray-400 text-sm">
-                    {formatDate(getWorkflowDate(name))}
+                    {formatDate(data.created_at || getWorkflowDate(name))}
                   </td>
                   <td className="py-4 px-6 text-gray-500 dark:text-gray-400 text-sm">
                     {formatDate(data.updated_at || getWorkflowDate(name))}
@@ -298,25 +391,39 @@ const WorkflowsPage = () => {
                           <MoreVertical className="w-4 h-4" />
                         </button>
                         {menuOpen === name && (
-                          <div className="absolute right-0 top-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl py-1 min-w-32 z-10">
+                          <div className="absolute right-0 top-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl py-1 min-w-40 z-10">
                             <button
-                              className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white"
+                              className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white flex items-center gap-3"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setCanvasWorkflow(name);
                                 setMenuOpen(null);
                               }}
                             >
+                              <Pencil className="w-4 h-4" />
                               Edit
                             </button>
                             <button
-                              className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700"
+                              className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white flex items-center gap-3"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDuplicate(name);
+                                setMenuOpen(null);
+                              }}
+                            >
+                              <Copy className="w-4 h-4" />
+                              Duplicate
+                            </button>
+                            <div className="border-t border-gray-100 dark:border-gray-700 my-1" />
+                            <button
+                              className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleDelete(name);
                                 setMenuOpen(null);
                               }}
                             >
+                              <Trash2 className="w-4 h-4" />
                               Delete
                             </button>
                           </div>
