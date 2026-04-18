@@ -415,6 +415,17 @@ async def list_workflows() -> WorkflowListResponse:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/workflows/contexts", response_model=List[str])
+async def list_contexts() -> List[str]:
+    """
+    Return all available AI_CONTEXT names from the merged config.
+    Used by the UI to populate the context binding dropdown.
+    """
+    merged = config_api._read_merged_config_dict()
+    contexts = merged.get("contexts", {})
+    return list(contexts.keys())
+
+
 @router.get("/workflows/{name}", response_model=WorkflowGetResponse)
 async def get_workflow(name: str) -> WorkflowGetResponse:
     """Get a single workflow definition by name."""
@@ -562,14 +573,3 @@ async def validate_workflow_body(req: WorkflowPutRequest) -> WorkflowValidateRes
         valid=len(errors) == 0,
         errors=errors,
     )
-
-
-@router.get("/workflows/contexts", response_model=List[str])
-async def list_contexts() -> List[str]:
-    """
-    Return all available AI_CONTEXT names from the merged config.
-    Used by the UI to populate the context binding dropdown.
-    """
-    merged = config_api._read_merged_config_dict()
-    contexts = merged.get("contexts", {})
-    return list(contexts.keys())
