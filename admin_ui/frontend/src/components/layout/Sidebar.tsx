@@ -127,7 +127,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false }) => {
                     <SidebarItem to="/providers" icon={Server} label="Providers" isCollapsed={isCollapsed} />
                     <SidebarItem to="/pipelines" icon={Workflow} label="Pipelines" isCollapsed={isCollapsed} />
                     <SidebarItem to="/contexts" icon={MessageSquare} label="Contexts" isCollapsed={isCollapsed} />
-<SidebarItem to="/workflows" icon={GitBranch} label="Workflows" isCollapsed={isCollapsed} />
+                    <SidebarItem to="/workflows" icon={GitBranch} label="Workflows" isCollapsed={isCollapsed} />
                     <SidebarItem to="/profiles" icon={Sliders} label="Profiles" isCollapsed={isCollapsed} />
                     <SidebarItem to="/tools" icon={Wrench} label="Tools" isCollapsed={isCollapsed} />
                     <SidebarItem to="/mcp" icon={Plug} label="MCP Servers" isCollapsed={isCollapsed} />
