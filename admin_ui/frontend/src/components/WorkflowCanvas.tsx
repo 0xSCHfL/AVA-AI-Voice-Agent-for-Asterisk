@@ -668,7 +668,7 @@ const WorkflowCanvas = ({ workflowName: initialWorkflowName = 'Untitled Workflow
   const handleSave = async () => {
     setSaving(true);
     const steps = nodes.filter(n => !n.isStart).map(n => ({ id: n.id, type: n.type, label: n.label, ...n.data, next: edges.find(e => e.from === n.id)?.to }));
-    await onSave?.({ steps, nodes, edges, globalPrompt, globalVoiceProvider, globalVoiceName, context: bindingContext });
+    await onSave?.({ steps, nodes, edges, globalPrompt, globalVoiceProvider, globalVoiceName, context: bindingContext, name: wfName });
     setSaving(false); setUnsaved(false);
   };
 

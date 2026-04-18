@@ -66,6 +66,31 @@ const WorkflowsPage = () => {
     }
   };
 
+  const handleRenameWorkflow = async (oldName: string, newName: string, data: any) => {
+    if (!newName || newName.trim() === '') {
+      toast.error('Invalid workflow name');
+      return;
+    }
+    if (workflowNames.includes(newName)) {
+      toast.error('Workflow name already exists');
+      return;
+    }
+    try {
+      // Save as new workflow
+      await axios.put(`/api/workflows/${newName}`, {
+        name: newName,
+        ...data,
+      });
+      // Delete old workflow
+      await axios.delete(`/api/workflows/${oldName}`);
+      toast.success(`Workflow renamed to ${newName}`);
+      setCanvasWorkflow(newName);
+      fetchWorkflows();
+    } catch (err: any) {
+      toast.error('Failed to rename workflow');
+    }
+  };
+
   const handleDelete = async (name: string) => {
     try {
       await axios.delete(`/api/workflows/${name}`);
@@ -88,8 +113,13 @@ const WorkflowsPage = () => {
         initialGlobalVoiceName={wf.global_voice_name}
         initialContext={wf.context}
         onSave={(data) => {
-          const { steps, nodes, edges, globalPrompt, globalVoiceProvider, globalVoiceName, context } = data as { steps: any[]; nodes: any[]; edges: any[]; globalPrompt?: string; globalVoiceProvider?: string; globalVoiceName?: string; context?: string };
-          handleSaveCanvas({ steps, canvas: { nodes, edges }, globalPrompt, globalVoiceProvider, globalVoiceName, context }, canvasWorkflow);
+          const { steps, nodes, edges, globalPrompt, globalVoiceProvider, globalVoiceName, context, name: newName } = data as { steps: any[]; nodes: any[]; edges: any[]; globalPrompt?: string; globalVoiceProvider?: string; globalVoiceName?: string; context?: string; name?: string };
+          // If name changed, need to handle rename
+          if (newName && newName !== canvasWorkflow) {
+            handleRenameWorkflow(canvasWorkflow, newName, { steps, canvas: { nodes, edges }, globalPrompt, globalVoiceProvider, globalVoiceName, context });
+          } else {
+            handleSaveCanvas({ steps, canvas: { nodes, edges }, globalPrompt, globalVoiceProvider, globalVoiceName, context }, canvasWorkflow);
+          }
         }}
         onClose={() => setCanvasWorkflow(null)}
       />
