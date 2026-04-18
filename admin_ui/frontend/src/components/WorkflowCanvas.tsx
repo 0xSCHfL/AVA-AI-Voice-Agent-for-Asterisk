@@ -552,6 +552,11 @@ const WorkflowCanvas = ({ workflowName: initialWorkflowName = 'Untitled Workflow
     if (e.button === 1 || e.altKey) {
       setIsPanning(true); setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y }); e.preventDefault();
     } else if (e.button === 0) {
+      // Start panning with left click if not clicking on a node
+      const target = e.target as HTMLElement;
+      if (!target.closest('[data-node-id]')) {
+        setIsPanning(true); setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+      }
       setSelected(null); setShowAddPanel(false); setShowMoreMenu(false);
       if (connecting) setConnecting(null);
     }
@@ -573,7 +578,9 @@ const WorkflowCanvas = ({ workflowName: initialWorkflowName = 'Untitled Workflow
 
   const handleWheel = useCallback(e => {
     e.preventDefault();
-    setZoom(z => Math.min(Math.max(z * (e.deltaY > 0 ? 0.9 : 1.1), 0.2), 3));
+    // Use deltaY for scroll/trackpad, with smooth zoom
+    const delta = e.deltaY !== 0 ? (e.deltaY > 0 ? 0.9 : 1.1) : (e.delta !== 0 ? (e.delta > 0 ? 0.95 : 1.05) : 1);
+    setZoom(z => Math.min(Math.max(z * delta, 0.2), 3));
   }, []);
 
   useEffect(() => {
@@ -843,7 +850,7 @@ const WorkflowCanvas = ({ workflowName: initialWorkflowName = 'Untitled Workflow
           </div>
 
           {/* Canvas */}
-          <div ref={canvasRef} style={{ width: '100%', height: '100%', overflow: 'hidden', cursor: isPanning ? 'grabbing' : connecting ? 'crosshair' : 'default' }}
+          <div ref={canvasRef} style={{ width: '100%', height: '100%', overflow: 'hidden', cursor: isPanning ? 'grabbing' : connecting ? 'crosshair' : 'grab' }}
             onMouseDown={handleCanvasDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}
           >
             {/* Dot grid */}
