@@ -212,7 +212,7 @@ async def put_workflow(name: str, req: WorkflowPutRequest) -> WorkflowGetRespons
 
     logger.info(f"Workflow saved: {name}")
 
-return WorkflowGetResponse(
+    return WorkflowGetResponse(
         name=req.name,
         description=req.description,
         version=req.version,
