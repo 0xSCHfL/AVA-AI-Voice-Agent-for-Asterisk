@@ -60,7 +60,6 @@ const ModelsPage = lazy(() => import('./pages/System/ModelsPage'));
 const UpdatesPage = lazy(() => import('./pages/System/UpdatesPage'));
 const AsteriskPage = lazy(() => import('./pages/System/AsteriskPage'));
 const WorkflowsPage = lazy(() => import("./pages/WorkflowsPage"));
-const WorkflowsPage = lazy(() => import("./pages/WorkflowsPage"));
 
 // Loading fallback for lazy-loaded pages
 const PageLoader = () => (
