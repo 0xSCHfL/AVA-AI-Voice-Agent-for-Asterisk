@@ -23,6 +23,7 @@ class WorkflowDefinition(BaseModel):
     version: str = "1.0"
     variables: Dict[str, str] = {}
     steps: List[Dict[str, Any]]
+    _canvas: Optional[Dict[str, Any]] = None
 
 
 class WorkflowListResponse(BaseModel):
@@ -37,6 +38,7 @@ class WorkflowGetResponse(BaseModel):
     version: str = "1.0"
     variables: Dict[str, str] = {}
     steps: List[Dict[str, Any]]
+    _canvas: Optional[Dict[str, Any]] = None
 
 
 class WorkflowPutRequest(BaseModel):
@@ -46,6 +48,7 @@ class WorkflowPutRequest(BaseModel):
     version: str = "1.0"
     variables: Dict[str, str] = {}
     steps: List[Dict[str, Any]]
+    _canvas: Optional[Dict[str, Any]] = None
 
 
 class WorkflowValidateResponse(BaseModel):
@@ -161,6 +164,7 @@ async def get_workflow(name: str) -> WorkflowGetResponse:
         version=workflow.get("version", "1.0"),
         variables=workflow.get("variables", {}),
         steps=workflow.get("steps", []),
+        _canvas=workflow.get("_canvas"),
     )
 
 
@@ -191,6 +195,7 @@ async def put_workflow(name: str, req: WorkflowPutRequest) -> WorkflowGetRespons
         "version": req.version,
         "variables": req.variables,
         "steps": req.steps,
+        "_canvas": req._canvas,
     }
     merged["workflows"] = workflows
 
@@ -207,12 +212,13 @@ async def put_workflow(name: str, req: WorkflowPutRequest) -> WorkflowGetRespons
 
     logger.info(f"Workflow saved: {name}")
 
-    return WorkflowGetResponse(
-        name=name,
+return WorkflowGetResponse(
+        name=req.name,
         description=req.description,
         version=req.version,
         variables=req.variables,
         steps=req.steps,
+        _canvas=req._canvas,
     )
 
 
