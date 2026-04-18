@@ -87,6 +87,67 @@ def _get_workflow(name: str) -> Optional[Dict[str, Any]]:
     return workflows.get(name)
 
 
+def _normalize_canvas_node(node: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Normalize a canvas node to VNode format.
+
+    Handles two formats:
+    - VNode format (internal): { id, type, label, x, y, data: { firstMessage, prompt, ... } }
+    - Canvas save format:       { name, type, prompt, metadata: { position: { x, y } },
+                                  messagePlan: { firstMessage, ... }, ... }
+    """
+    normalized = dict(node)
+
+    # name → id (and ensure every node has an id)
+    if "id" not in normalized:
+        if "name" in normalized:
+            normalized["id"] = normalized.pop("name")
+        else:
+            normalized["id"] = f"node_{id(normalized)}"
+
+    # metadata.position.x/y → x/y
+    metadata = normalized.get("metadata") or {}
+    if isinstance(metadata, dict):
+        position = metadata.get("position") or {}
+        if isinstance(position, dict):
+            if "x" not in normalized:
+                normalized["x"] = position.get("x", 0)
+            if "y" not in normalized:
+                normalized["y"] = position.get("y", 0)
+        # Remove metadata after extraction
+        normalized.pop("metadata", None)
+
+    # Flatten messagePlan.firstMessage → data.firstMessage
+    message_plan = normalized.pop("messagePlan", None) or {}
+    if isinstance(message_plan, dict):
+        first_message = message_plan.get("firstMessage")
+        if first_message:
+            data = normalized.get("data") or {}
+            if isinstance(data, dict):
+                data.setdefault("firstMessage", first_message)
+            else:
+                normalized["data"] = {"firstMessage": first_message}
+
+    # prompt at root → data.prompt
+    prompt = normalized.pop("prompt", None)
+    if prompt:
+        data = normalized.get("data") or {}
+        if isinstance(data, dict):
+            data.setdefault("prompt", prompt)
+        else:
+            normalized["data"] = {"prompt": prompt}
+
+    # Ensure data is a dict
+    if "data" not in normalized or not isinstance(normalized.get("data"), dict):
+        normalized["data"] = {}
+
+    # Preserve isStart flag
+    if "isStart" not in normalized:
+        normalized["isStart"] = node.get("isStart", False)
+
+    return normalized
+
+
 def _canvas_step_to_engine_step(node: Dict[str, Any], outgoing_edge_label: Optional[str] = None) -> Dict[str, Any]:
     """
     Convert a canvas workflow node to an engine WorkflowStep dict.
@@ -100,6 +161,9 @@ def _canvas_step_to_engine_step(node: Dict[str, Any], outgoing_edge_label: Optio
 
     Edge labels (conditions) become branch conditions on the outgoing step.
     """
+    # Normalize in case the canvas saved in its own format
+    node = _normalize_canvas_node(node)
+
     step_id = node.get("id", "")
     node_type = node.get("type", "conversation")
     label = node.get("label", "")
@@ -170,17 +234,61 @@ def _build_workflow_steps(nodes: List[Dict[str, Any]], edges: List[Dict[str, Any
     Convert canvas nodes + edges into engine WorkflowStep dicts.
 
     Edges with labels become branch conditions on the source step.
+    Handles two node formats: VNode (id at root) and canvas save format (name at root,
+    metadata.position.x/y). Also resolves edges that reference the original internal
+    node IDs ("start", random uids) to the normalized node IDs.
     """
+    # Normalize all nodes first to get consistent ids
+    normalized_nodes = [_normalize_canvas_node(n) for n in nodes]
+
+    # Build name→id and original_id→normalized_id maps for edge resolution
+    name_to_id: Dict[str, str] = {}
+    id_to_normalized_id: Dict[str, str] = {}
+    for i, node in enumerate(normalized_nodes):
+        nid = node.get("id", f"node_{i}")
+        name_to_id[node.get("name", "") or nid] = nid
+        # Track original index-based id too
+        id_to_normalized_id[nodes[i].get("id", f"node_{i}")] = nid
+        id_to_normalized_id[nodes[i].get("name", "") or f"node_{i}"] = nid
+
+    # Update start-node id: if any node is isStart, it gets id "start" in VNode format
+    # Find the isStart node in original nodes and map its id to "start"
+    for orig in nodes:
+        if orig.get("isStart") and orig.get("id"):
+            id_to_normalized_id[orig["id"]] = "start"
+            break
+
+    # Normalize edges: resolve from/to to normalized node ids
+    normalized_edges = []
+    for edge in edges:
+        ne = dict(edge)
+        from_id = edge.get("from", "")
+        to_id = edge.get("to", "")
+
+        # Resolve from: first check if it's a known id, else check if it's a name
+        if from_id in id_to_normalized_id:
+            ne["from"] = id_to_normalized_id[from_id]
+        elif from_id in name_to_id:
+            ne["from"] = name_to_id[from_id]
+
+        # Resolve to: same logic
+        if to_id in id_to_normalized_id:
+            ne["to"] = id_to_normalized_id[to_id]
+        elif to_id in name_to_id:
+            ne["to"] = name_to_id[to_id]
+
+        normalized_edges.append(ne)
+
     # Index edges by source node id -> {edge_id: label}
     edge_map: Dict[str, Dict[str, str]] = {}
-    for edge in edges:
+    for edge in normalized_edges:
         fid = edge.get("from")
         if fid:
             edge_map.setdefault(fid, {})
             edge_map[fid][edge.get("id", "")] = edge.get("label") or ""
 
     engine_steps = []
-    for node in nodes:
+    for node in normalized_nodes:
         node_id = node.get("id", "")
         outgoing = edge_map.get(node_id, {})
         labeled = {eid: lbl for eid, lbl in outgoing.items() if lbl}
@@ -191,7 +299,7 @@ def _build_workflow_steps(nodes: List[Dict[str, Any]], edges: List[Dict[str, Any
         if len(labeled) > 1:
             conditions = []
             for eid, lbl in labeled.items():
-                target = next((e.get("to") for e in edges if e.get("id") == eid), None)
+                target = next((e.get("to") for e in normalized_edges if e.get("id") == eid), None)
                 if target:
                     conditions.append({"if": lbl, "goto": target})
             if conditions:
@@ -203,7 +311,7 @@ def _build_workflow_steps(nodes: List[Dict[str, Any]], edges: List[Dict[str, Any
         elif len(labeled) == 1:
             # Single labeled edge → attach as goto
             eid = next(iter(labeled.keys()))
-            target = next((e.get("to") for e in edges if e.get("id") == eid), None)
+            target = next((e.get("to") for e in normalized_edges if e.get("id") == eid), None)
             if target:
                 step["next"] = target
 
