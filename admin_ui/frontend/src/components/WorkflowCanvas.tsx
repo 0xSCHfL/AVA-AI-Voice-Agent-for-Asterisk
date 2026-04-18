@@ -469,7 +469,7 @@ const GlobalVoicePanel = ({ provider, voice, onProviderChange, onVoiceChange, on
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-const WorkflowCanvas = ({ workflowName: initialWorkflowName = 'Untitled Workflow', initialNodes, initialEdges, onSave, onClose }) => {
+const WorkflowCanvas = ({ workflowName: initialWorkflowName = 'Untitled Workflow', initialNodes, initialEdges, initialGlobalPrompt, initialGlobalVoiceProvider, initialGlobalVoiceName, initialContext, onSave, onClose }) => {
   const [wfId] = useState(() => shortUuid());
   const [wfName, setWfName] = useState(initialWorkflowName);
   const [editingName, setEditingName] = useState(false);
@@ -496,13 +496,21 @@ const WorkflowCanvas = ({ workflowName: initialWorkflowName = 'Untitled Workflow
   const [showVariables, setShowVariables] = useState(false);
   const [showGlobalPrompt, setShowGlobalPrompt] = useState(false);
   const [showGlobalVoice, setShowGlobalVoice] = useState(false);
-  const [globalPrompt, setGlobalPrompt] = useState('');
-  const [globalVoiceProvider, setGlobalVoiceProvider] = useState('Vapi');
-  const [globalVoiceName, setGlobalVoiceName] = useState('Elliot');
+  const [globalPrompt, setGlobalPrompt] = useState(initialGlobalPrompt || '');
+  const [globalVoiceProvider, setGlobalVoiceProvider] = useState(initialGlobalVoiceProvider || 'Vapi');
+  const [globalVoiceName, setGlobalVoiceName] = useState(initialGlobalVoiceName || 'Elliot');
   const [editingEdge, setEditingEdge] = useState(null);
+  const [bindingContext, setBindingContext] = useState(initialContext || '');
+  const [availableContexts, setAvailableContexts] = useState<string[]>([]);
 
   const canvasRef = useRef(null);
   const mark = () => setUnsaved(true);
+
+  // Fetch available AI contexts for binding
+  useEffect(() => {
+    if (showGlobalPrompt) return; // don't fetch while panels are open
+    axios.get('/api/workflows/contexts').then(r => setAvailableContexts(r.data)).catch(() => {});
+  }, [showGlobalPrompt, showGlobalVoice, showVariables]);
 
   // Auto-focus name input when editing
   useEffect(() => {
@@ -652,7 +660,7 @@ const WorkflowCanvas = ({ workflowName: initialWorkflowName = 'Untitled Workflow
   const handleSave = async () => {
     setSaving(true);
     const steps = nodes.filter(n => !n.isStart).map(n => ({ id: n.id, type: n.type, label: n.label, ...n.data, next: edges.find(e => e.from === n.id)?.to }));
-    await onSave?.({ steps, nodes, edges });
+    await onSave?.({ steps, nodes, edges, globalPrompt, globalVoiceProvider, globalVoiceName, context: bindingContext });
     setSaving(false); setUnsaved(false);
   };
 
@@ -732,6 +740,16 @@ const WorkflowCanvas = ({ workflowName: initialWorkflowName = 'Untitled Workflow
           <button style={{ background: 'none', border: '1px solid #22c55e40', borderRadius: 7, cursor: 'pointer', color: '#22c55e', padding: '6px 14px', fontSize: 12, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'inherit' }}>
             📞 Call <ChevronDown size={12}/>
           </button>
+          <div style={{ position: 'relative' }}>
+            <select
+              value={bindingContext}
+              onChange={e => { setBindingContext(e.target.value); mark(); }}
+              style={{ background: '#0d1520', border: '1px solid #1e2d3d', borderRadius: 7, color: '#94a3b8', fontSize: 12, fontFamily: 'inherit', padding: '6px 10px', outline: 'none', cursor: 'pointer', appearance: 'none' }}
+            >
+              <option value="">— Bind to context —</option>
+              {availableContexts.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
           <button onClick={handleSave} disabled={saving} style={{ background: '#10b981', border: 'none', borderRadius: 7, cursor: 'pointer', color: '#fff', padding: '7px 18px', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'inherit', opacity: saving ? 0.7 : 1 }}>
             {saving ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={13}/>} Save
           </button>

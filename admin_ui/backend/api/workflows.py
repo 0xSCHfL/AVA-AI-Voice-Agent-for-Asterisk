@@ -39,6 +39,12 @@ class WorkflowGetResponse(BaseModel):
     variables: Dict[str, str] = {}
     steps: List[Dict[str, Any]]
     _canvas: Optional[Dict[str, Any]] = None
+    # Global AI guidance (Hybrid mode - Option C)
+    global_prompt: Optional[str] = None
+    global_voice_provider: Optional[str] = None
+    global_voice_name: Optional[str] = None
+    # Context binding
+    context: Optional[str] = None
 
 
 class WorkflowPutRequest(BaseModel):
@@ -49,6 +55,12 @@ class WorkflowPutRequest(BaseModel):
     variables: Dict[str, str] = {}
     steps: List[Dict[str, Any]]
     _canvas: Optional[Dict[str, Any]] = None
+    # Global AI guidance (Hybrid mode - Option C)
+    global_prompt: Optional[str] = None
+    global_voice_provider: Optional[str] = None
+    global_voice_name: Optional[str] = None
+    # Context binding: which AI_CONTEXT this workflow should be assigned to
+    context: Optional[str] = None
 
 
 class WorkflowValidateResponse(BaseModel):
@@ -73,6 +85,179 @@ def _get_workflow(name: str) -> Optional[Dict[str, Any]]:
     """Get a single workflow definition by name."""
     workflows = _get_workflows_from_config()
     return workflows.get(name)
+
+
+def _canvas_step_to_engine_step(node: Dict[str, Any], outgoing_edge_label: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Convert a canvas workflow node to an engine WorkflowStep dict.
+
+    Canvas node types → engine step types:
+      conversation  → PROMPT (speak prompt text, collect reply)
+      api_request   → ACTION (generic_http_lookup tool)
+      transfer_call → ACTION (unified_transfer tool)
+      end_call      → ACTION (hangup_call tool)
+      tool          → ACTION (named tool)
+
+    Edge labels (conditions) become branch conditions on the outgoing step.
+    """
+    step_id = node.get("id", "")
+    node_type = node.get("type", "conversation")
+    label = node.get("label", "")
+    data = node.get("data") or {}
+
+    if node_type == "conversation":
+        # Build prompt text: firstMessage + prompt field
+        parts = []
+        fm = data.get("firstMessage") or data.get("prompt") or ""
+        if fm:
+            parts.append(fm.strip())
+        prompt_text = "\n\n".join(parts)
+        return {
+            "id": step_id,
+            "type": "prompt",
+            "prompt": prompt_text,
+        }
+
+    elif node_type == "api_request":
+        url = data.get("url") or ""
+        return {
+            "id": step_id,
+            "type": "action",
+            "tool": "generic_http_lookup",
+            "parameters": {"url": url},
+            "next": node.get("next"),
+        }
+
+    elif node_type == "transfer_call":
+        destination = data.get("destination") or ""
+        return {
+            "id": step_id,
+            "type": "action",
+            "tool": "unified_transfer",
+            "parameters": {"destination": destination},
+            "next": node.get("next"),
+        }
+
+    elif node_type == "end_call":
+        farewell = data.get("farewell") or ""
+        return {
+            "id": step_id,
+            "type": "action",
+            "tool": "hangup_call",
+            "parameters": {"farewell": farewell},
+        }
+
+    elif node_type == "tool":
+        tool_name = data.get("toolName") or ""
+        return {
+            "id": step_id,
+            "type": "action",
+            "tool": tool_name,
+            "parameters": {},
+            "next": node.get("next"),
+        }
+
+    # Fallback: conversation node
+    return {
+        "id": step_id,
+        "type": "prompt",
+        "prompt": label,
+    }
+
+
+def _build_workflow_steps(nodes: List[Dict[str, Any]], edges: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Convert canvas nodes + edges into engine WorkflowStep dicts.
+
+    Edges with labels become branch conditions on the source step.
+    """
+    # Index edges by source node id -> {edge_id: label}
+    edge_map: Dict[str, Dict[str, str]] = {}
+    for edge in edges:
+        fid = edge.get("from")
+        if fid:
+            edge_map.setdefault(fid, {})
+            edge_map[fid][edge.get("id", "")] = edge.get("label") or ""
+
+    engine_steps = []
+    for node in nodes:
+        node_id = node.get("id", "")
+        outgoing = edge_map.get(node_id, {})
+        labeled = {eid: lbl for eid, lbl in outgoing.items() if lbl}
+
+        step = _canvas_step_to_engine_step(node)
+
+        # Attach branch conditions if multiple outgoing edges have labels
+        if len(labeled) > 1:
+            conditions = []
+            for eid, lbl in labeled.items():
+                target = next((e.get("to") for e in edges if e.get("id") == eid), None)
+                if target:
+                    conditions.append({"if": lbl, "goto": target})
+            if conditions:
+                step["conditions"] = conditions
+                step["type"] = "branch"
+                step.pop("tool", None)
+                step.pop("parameters", None)
+
+        elif len(labeled) == 1:
+            # Single labeled edge → attach as goto
+            eid = next(iter(labeled.keys()))
+            target = next((e.get("to") for e in edges if e.get("id") == eid), None)
+            if target:
+                step["next"] = target
+
+        engine_steps.append(step)
+
+    return engine_steps
+
+
+def _assign_workflow_to_context(workflow_name: str, context_name: str) -> None:
+    """
+    Bind a workflow to an AI_CONTEXT in the config.
+
+    This creates or updates the contexts.<name>.workflow entry in the
+    local override config so the engine picks up the workflow at call start.
+    It also injects the workflow's global_prompt into the context's prompt
+    field so the engine's existing prompt injection (line ~10057 in engine.py)
+    picks it up automatically.
+
+    Args:
+        workflow_name: Name of the workflow to bind
+        context_name: AI_CONTEXT name to bind it to
+    """
+    merged = config_api._read_merged_config_dict()
+    base = config_api._read_base_config_dict()
+
+    # Ensure contexts block exists
+    merged.setdefault("contexts", {})
+    base_contexts = base.get("contexts", {})
+
+    # Get workflow's global_prompt to inject into context prompt
+    workflow_def = merged["workflows"].get(workflow_name, {})
+    wf_global_prompt = workflow_def.get("global_prompt")
+
+    # Build context value — preserve existing fields, override workflow + prompt
+    existing_ctx = merged["contexts"].get(context_name, {})
+    if isinstance(existing_ctx, dict):
+        ctx_value = dict(existing_ctx)
+    else:
+        ctx_value = {}
+
+    ctx_value["workflow"] = workflow_name
+
+    # If workflow has a global_prompt, inject it as the context's prompt
+    # so the engine's existing prompt injection picks it up automatically
+    if wf_global_prompt:
+        ctx_value["prompt"] = wf_global_prompt
+
+    merged["contexts"][context_name] = ctx_value
+
+    override = config_api._compute_local_override(base, merged)
+    import yaml
+    content = yaml.dump(override, default_flow_style=False, sort_keys=False)
+    config_api._write_local_config(content)
+    logger.info(f"Workflow '{workflow_name}' assigned to context '{context_name}' (global_prompt injected)")
 
 
 def _validate_workflow_steps(steps: List[Dict[str, Any]]) -> List[str]:
@@ -136,6 +321,10 @@ async def get_workflow(name: str) -> WorkflowGetResponse:
         variables=workflow.get("variables", {}),
         steps=workflow.get("steps", []),
         _canvas=workflow.get("_canvas"),
+        global_prompt=workflow.get("global_prompt"),
+        global_voice_provider=workflow.get("global_voice_provider"),
+        global_voice_name=workflow.get("global_voice_name"),
+        context=workflow.get("context"),
     )
 
 
@@ -161,12 +350,23 @@ async def put_workflow(name: str, req: WorkflowPutRequest) -> WorkflowGetRespons
     workflows = merged.get("workflows", {})
 
     # Update the workflow
+    # Convert canvas nodes + edges to engine workflow steps if _canvas is provided
+    engine_steps = req.steps
+    if req._canvas and req._canvas.get("nodes") is not None:
+        nodes = req._canvas["nodes"]
+        edges = req._canvas.get("edges") or []
+        engine_steps = _build_workflow_steps(nodes, edges)
+
     workflows[name] = {
         "description": req.description,
         "version": req.version,
         "variables": req.variables,
-        "steps": req.steps,
+        "steps": engine_steps,
         "_canvas": req._canvas,
+        # Hybrid mode fields
+        "global_prompt": req.global_prompt,
+        "global_voice_provider": req.global_voice_provider,
+        "global_voice_name": req.global_voice_name,
     }
     merged["workflows"] = workflows
 
@@ -183,6 +383,10 @@ async def put_workflow(name: str, req: WorkflowPutRequest) -> WorkflowGetRespons
 
     logger.info(f"Workflow saved: {name}")
 
+    # If context binding was provided, assign this workflow to the context
+    if req.context:
+        _assign_workflow_to_context(name, req.context)
+
     return WorkflowGetResponse(
         name=req.name,
         description=req.description,
@@ -190,6 +394,10 @@ async def put_workflow(name: str, req: WorkflowPutRequest) -> WorkflowGetRespons
         variables=req.variables,
         steps=req.steps,
         _canvas=req._canvas,
+        global_prompt=req.global_prompt,
+        global_voice_provider=req.global_voice_provider,
+        global_voice_name=req.global_voice_name,
+        context=req.context,
     )
 
 
@@ -246,3 +454,14 @@ async def validate_workflow_body(req: WorkflowPutRequest) -> WorkflowValidateRes
         valid=len(errors) == 0,
         errors=errors,
     )
+
+
+@router.get("/workflows/contexts", response_model=List[str])
+async def list_contexts() -> List[str]:
+    """
+    Return all available AI_CONTEXT names from the merged config.
+    Used by the UI to populate the context binding dropdown.
+    """
+    merged = config_api._read_merged_config_dict()
+    contexts = merged.get("contexts", {})
+    return list(contexts.keys())

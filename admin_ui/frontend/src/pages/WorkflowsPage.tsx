@@ -39,7 +39,7 @@ const WorkflowsPage = () => {
     }
   };
 
-  const handleSaveCanvas = async ({ steps, _canvas }: { steps: any[]; _canvas: { nodes: any[]; edges: any[] } }, name: string) => {
+  const handleSaveCanvas = async ({ steps, _canvas, globalPrompt, globalVoiceProvider, globalVoiceName, context }: { steps: any[]; _canvas: { nodes: any[]; edges: any[] }; globalPrompt?: string; globalVoiceProvider?: string; globalVoiceName?: string; context?: string }, name: string) => {
     const wf = {
       name,
       description: workflowsData[name]?.description || '',
@@ -47,6 +47,10 @@ const WorkflowsPage = () => {
       variables: workflowsData[name]?.variables || {},
       steps,
       _canvas,
+      global_prompt: globalPrompt,
+      global_voice_provider: globalVoiceProvider,
+      global_voice_name: globalVoiceName,
+      context: context || workflowsData[name]?.context,
     };
     try {
       await axios.put(`/api/workflows/${name}`, wf);
@@ -79,9 +83,13 @@ const WorkflowsPage = () => {
         workflowName={canvasWorkflow}
         initialNodes={wf._canvas?.nodes}
         initialEdges={wf._canvas?.edges}
+        initialGlobalPrompt={wf.global_prompt}
+        initialGlobalVoiceProvider={wf.global_voice_provider}
+        initialGlobalVoiceName={wf.global_voice_name}
+        initialContext={wf.context}
         onSave={(data) => {
-          const { steps, nodes, edges } = data as { steps: any[]; nodes: any[]; edges: any[] };
-          handleSaveCanvas({ steps, _canvas: { nodes, edges } }, canvasWorkflow);
+          const { steps, nodes, edges, globalPrompt, globalVoiceProvider, globalVoiceName, context } = data as { steps: any[]; nodes: any[]; edges: any[]; globalPrompt?: string; globalVoiceProvider?: string; globalVoiceName?: string; context?: string };
+          handleSaveCanvas({ steps, _canvas: { nodes, edges }, globalPrompt, globalVoiceProvider, globalVoiceName, context }, canvasWorkflow);
         }}
         onClose={() => setCanvasWorkflow(null)}
       />
