@@ -455,6 +455,7 @@ async def put_workflow(name: str, req: WorkflowPutRequest) -> WorkflowGetRespons
     The workflow is written to the local override config (ai-agent.local.yaml)
     so it persists across config updates and is gitignored.
     """
+    logger.info(f"req dict = {req.dict()}")
     # Validate steps
     errors = _validate_workflow_steps(req.steps)
     if errors:
