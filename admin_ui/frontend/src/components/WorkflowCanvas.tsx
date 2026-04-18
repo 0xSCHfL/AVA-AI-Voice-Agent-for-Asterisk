@@ -3,7 +3,6 @@ import {
   Plus, X, Save, Loader2, ZoomIn, ZoomOut, Maximize2,
   RotateCcw, RefreshCw, ArrowLeftRight, Code2,
   MoreHorizontal, ChevronDown, Settings, Lock,
-  Mic, Braces, MessageSquare,
 } from 'lucide-react';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
@@ -67,7 +66,7 @@ function bezier(x1, y1, x2, y2) {
 
 // ─── Node ─────────────────────────────────────────────────────────────────────
 
-const VNode = ({ node, selected, onSelect, onDragStart, onOutputMouseDown, onInputMouseUp, isConnecting, onDelete, onUpdateNode }) => {
+const VNode = ({ node, selected, onSelect, onDragStart, onOutputMouseDown, onInputMouseUp, isConnecting, onDelete, onDuplicate, onUpdateNode, onAddFromPort }) => {
   const def = NODE_DEFS[node.type] || NODE_DEFS.conversation;
   const [outputHovered, setOutputHovered] = useState(false);
 
@@ -204,6 +203,28 @@ const VNode = ({ node, selected, onSelect, onDragStart, onOutputMouseDown, onInp
         </div>
       </div>
 
+      {/* Right-side action buttons when selected */}
+      {selected && (
+        <div style={{ position: 'absolute', right: -44, top: '40%', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <button
+            onMouseDown={e => { e.stopPropagation(); onDelete(node.id); }}
+            style={{ width: 32, height: 32, borderRadius: 8, background: '#0d1520', border: '1px solid #1e2d3d', cursor: 'pointer', color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            onMouseEnter={e => { e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.borderColor = '#ef444440'; }}
+            onMouseLeave={e => { e.currentTarget.style.color = '#64748b'; e.currentTarget.style.borderColor = '#1e2d3d'; }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+          </button>
+          <button
+            onMouseDown={e => { e.stopPropagation(); onDuplicate(node.id); }}
+            style={{ width: 32, height: 32, borderRadius: 8, background: '#0d1520', border: '1px solid #1e2d3d', cursor: 'pointer', color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            onMouseEnter={e => { e.currentTarget.style.color = '#94a3b8'; e.currentTarget.style.borderColor = '#2a3d52'; }}
+            onMouseLeave={e => { e.currentTarget.style.color = '#64748b'; e.currentTarget.style.borderColor = '#1e2d3d'; }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          </button>
+        </div>
+      )}
+
       {/* Output port — filled blue circle + green + button */}
       <div
         style={{ position: 'absolute', bottom: -9, left: '50%', transform: 'translateX(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0, zIndex: 30 }}
@@ -214,8 +235,7 @@ const VNode = ({ node, selected, onSelect, onDragStart, onOutputMouseDown, onInp
           onMouseDown={e => { e.stopPropagation(); onOutputMouseDown(e, node.id); }}
           style={{
             width: 18, height: 18, borderRadius: '50%',
-            background: '#3b82f6',
-            border: '2.5px solid #1d4ed8',
+            background: '#3b82f6', border: '2.5px solid #1d4ed8',
             cursor: 'crosshair',
             boxShadow: outputHovered ? '0 0 12px #3b82f680' : 'none',
             transition: 'box-shadow 0.15s',
@@ -223,16 +243,15 @@ const VNode = ({ node, selected, onSelect, onDragStart, onOutputMouseDown, onInp
         />
         {outputHovered && (
           <div
-            onMouseDown={e => { e.stopPropagation(); onOutputMouseDown(e, node.id); }}
+            onMouseDown={e => { e.stopPropagation(); e.preventDefault(); onAddFromPort(node.id); }}
             style={{
-              marginTop: 8, width: 28, height: 28, borderRadius: '50%',
+              marginTop: 8, width: 32, height: 32, borderRadius: '50%',
               background: '#10b981', border: '2px solid #059669',
               cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 0 12px #10b98180',
-              animation: 'fadeIn 0.1s ease',
+              boxShadow: '0 0 14px #10b98190', animation: 'fadeIn 0.1s ease',
             }}
           >
-            <Plus size={14} color="#fff" />
+            <Plus size={16} color="#fff" />
           </div>
         )}
       </div>
@@ -240,95 +259,223 @@ const VNode = ({ node, selected, onSelect, onDragStart, onOutputMouseDown, onInp
   );
 };
 
-// ─── Left Sidebar ─────────────────────────────────────────────────────────────
+// ─── Floating Add Panel ───────────────────────────────────────────────────────
 
-const Sidebar = ({ onAddNode, showAddPanel, setShowAddPanel }) => {
-  const sidebarBtns = [
-    { label: 'Add a Node', icon: <Plus size={14}/>, primary: true, action: () => setShowAddPanel(v => !v) },
-    { label: 'Global Prompt', icon: <MessageSquare size={14}/>, action: () => {} },
-    { label: 'Global Voice', icon: <Mic size={14}/>, action: () => {} },
-    { label: 'Variables', icon: <Braces size={14}/>, action: () => {} },
-  ];
-
-  return (
-    <div style={{
-      position: 'absolute', left: 16, top: 16,
-      display: 'flex', flexDirection: 'column', gap: 8,
-      zIndex: 110,
-    }}>
-      {sidebarBtns.map((btn, i) => (
-        <button
-          key={i}
-          onClick={btn.action}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            padding: '8px 16px',
-            background: (i === 0 && showAddPanel) ? '#10b98120' : '#0d1520',
-            border: `1px solid ${(i === 0 && showAddPanel) ? '#10b981' : '#1e2d3d'}`,
-            borderRadius: 8, cursor: 'pointer',
-            color: (i === 0 && showAddPanel) ? '#10b981' : '#94a3b8',
-            fontSize: 12, fontWeight: 500, fontFamily: 'inherit',
-            whiteSpace: 'nowrap',
-          }}
-          onMouseEnter={e => { if (!(i === 0 && showAddPanel)) e.currentTarget.style.borderColor = '#2a3d52'; }}
-          onMouseLeave={e => { if (!(i === 0 && showAddPanel)) e.currentTarget.style.borderColor = '#1e2d3d'; }}
-        >
-          <span style={{ color: i === 0 ? (showAddPanel ? '#10b981' : '#10b981') : '#64748b' }}>{btn.icon}</span>
-          {btn.label}
-        </button>
-      ))}
-
-      {/* Add node dropdown */}
-      {showAddPanel && (
-        <div style={{
-          position: 'absolute', left: 0, top: 48,
-          width: 300, background: '#0d1520',
-          border: '1px solid #1e2d3d', borderRadius: 12,
-          boxShadow: '0 16px 48px #000c', overflow: 'hidden',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px 12px', borderBottom: '1px solid #1e2d3d' }}>
-            <span style={{ color: '#e2e8f0', fontSize: 14, fontWeight: 600 }}>Add a Node</span>
-            <button onClick={() => setShowAddPanel(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#475569', lineHeight: 1 }}><X size={15}/></button>
-          </div>
-          {Object.entries(NODE_DEFS).map(([type, meta]) => (
-            <button
-              key={type}
-              onClick={() => { onAddNode(type); setShowAddPanel(false); }}
-              style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '10px 16px', background: 'none', border: 'none', cursor: 'pointer', color: '#cbd5e1', fontSize: 13, textAlign: 'left', fontFamily: 'inherit' }}
-              onMouseEnter={e => e.currentTarget.style.background = '#ffffff08'}
-              onMouseLeave={e => e.currentTarget.style.background = 'none'}
-            >
-              <div style={{ width: 34, height: 34, borderRadius: 9, background: meta.iconBg + 'cc', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0 }}>
-                {meta.icon}
-              </div>
-              <span style={{ flex: 1 }}>{meta.label}</span>
-              <span style={{ fontSize: 10, color: '#2a3a4a' }}>{meta.shortcut}</span>
-            </button>
-          ))}
+const AddPanel = ({ onAdd, onClose }) => (
+  <div style={{
+    position: 'absolute', left: 16, top: 120,
+    width: 300, background: '#0d1520',
+    border: '1px solid #1e2d3d', borderRadius: 12,
+    boxShadow: '0 16px 48px #000c', zIndex: 200, overflow: 'hidden',
+    fontFamily: 'inherit',
+    animation: 'fadeIn 0.12s ease',
+  }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px 12px', borderBottom: '1px solid #1e2d3d' }}>
+      <span style={{ color: '#e2e8f0', fontSize: 14, fontWeight: 600 }}>Add a Node</span>
+      <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#475569', lineHeight: 1, padding: 2 }}><X size={15}/></button>
+    </div>
+    {Object.entries(NODE_DEFS).map(([type, meta]) => (
+      <button
+        key={type}
+        onClick={() => { onAdd(type); onClose(); }}
+        style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '10px 16px', background: 'none', border: 'none', cursor: 'pointer', color: '#cbd5e1', fontSize: 13, textAlign: 'left', fontFamily: 'inherit' }}
+        onMouseEnter={e => e.currentTarget.style.background = '#ffffff08'}
+        onMouseLeave={e => e.currentTarget.style.background = 'none'}
+      >
+        <div style={{ width: 34, height: 34, borderRadius: 9, background: meta.iconBg + 'cc', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0 }}>
+          {meta.icon}
         </div>
-      )}
+        <span style={{ flex: 1 }}>{meta.label}</span>
+        <span style={{ fontSize: 10, color: '#2a3a4a' }}>{meta.shortcut}</span>
+      </button>
+    ))}
+  </div>
+);
+
+// ─── JSON Modal ───────────────────────────────────────────────────────────────
+
+const JsonModal = ({ wfName, nodes, edges, onClose }) => {
+  const json = JSON.stringify({ name: wfName, nodes: nodes.map(n => ({ name: n.label, type: n.type, isStart: n.isStart || undefined, metadata: { position: { x: n.x, y: n.y } }, prompt: n.data?.prompt, messagePlan: n.data?.firstMessage ? { firstMessage: n.data.firstMessage } : undefined })), edges }, null, 2);
+  const lines = json.split('\n');
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: '#00000080', zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={onClose}>
+      <div style={{ background: '#0a0f1a', border: '1px solid #1e2d3d', borderRadius: 14, width: 680, maxHeight: '80vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 64px #000e' }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 20px', borderBottom: '1px solid #111a26' }}>
+          <div style={{ width: 32, height: 32, borderRadius: 8, background: '#10b98120', border: '1px solid #10b98140', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981' }}>
+            <Code2 size={16}/>
+          </div>
+          <span style={{ color: '#e2e8f0', fontSize: 15, fontWeight: 600 }}>Workflow JSON</span>
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+            <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#475569', padding: 4 }} onClick={() => navigator.clipboard?.writeText(json)} title="Copy JSON">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            </button>
+            <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#475569', padding: 4 }} onClick={onClose}><X size={16}/></button>
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 20px', borderBottom: '1px solid #0d1520' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#475569', fontSize: 11 }}>
+            <Code2 size={12}/> JSON Format
+          </div>
+          <span style={{ color: '#334155', fontSize: 11 }}>{lines.length} lines</span>
+        </div>
+        <pre style={{ flex: 1, overflowY: 'auto', margin: 0, padding: '16px 20px', color: '#94a3b8', fontSize: 12, lineHeight: 1.7, fontFamily: 'inherit', background: 'transparent' }}>
+          {lines.map((line, i) => (
+            <div key={i} style={{ display: 'flex', gap: 16 }}>
+              <span style={{ color: '#1e3a52', minWidth: 28, textAlign: 'right', flexShrink: 0 }}>{i + 1}</span>
+              <span dangerouslySetInnerHTML={{ __html: line
+                .replace(/("[\w]+"): /g, '<span style="color:#22d3ee">$1</span>: ')
+                .replace(/: (".*?")/g, ': <span style="color:#a78bfa">$1</span>')
+                .replace(/: (true|false|null)/g, ': <span style="color:#f59e0b">$1</span>')
+                .replace(/: (-?\d+\.?\d*)/g, ': <span style="color:#34d399">$1</span>')
+              }} />
+            </div>
+          ))}
+        </pre>
+      </div>
     </div>
   );
 };
 
-// ─── Edge label ───────────────────────────────────────────────────────────────
+// ─── Variables Panel ───────────────────────────────────────────────────────────
 
-const EdgeLabel = ({ x, y, label, onDelete }) => {
-  const [hov, setHov] = useState(false);
-  const text = hov ? '✕' : (label || 'condition');
-  const w = hov ? 32 : Math.max(text.length * 7 + 20, 70);
+const VariablesPanel = ({ onClose }) => {
+  const [varSearch, setVarSearch] = useState('');
+  const VAPI_VARS = ['now','date','time','month','day','year','customer.number','transport.conversationType'];
+
   return (
-    <g style={{ pointerEvents: 'all' }}>
-      <rect x={x - w / 2} y={y - 11} width={w} height={22} rx={11} fill="#0d1520" stroke="#1e2d3d" strokeWidth={1} style={{ cursor: 'pointer' }} onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)} onClick={onDelete} />
-      <text x={x} y={y + 4} textAnchor="middle" fill={hov ? '#ef4444' : '#64748b'} fontSize={10} fontFamily="inherit" style={{ pointerEvents: 'none' }}>{text}</text>
-    </g>
+    <div style={{ position: 'absolute', inset: 0, background: '#00000060', zIndex: 400, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: 60 }} onClick={onClose}>
+      <div style={{ background: '#0a0f1a', border: '1px solid #1e2d3d', borderRadius: 12, width: 500, maxHeight: '75vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 64px #000e', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 20px 14px' }}>
+          <span style={{ color: '#e2e8f0', fontSize: 16, fontWeight: 700 }}>Variables</span>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#475569', padding: 4 }}><X size={16}/></button>
+        </div>
+        <div style={{ padding: '0 16px 12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#0d1520', border: '1px solid #1e2d3d', borderRadius: 8, padding: '8px 12px' }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#475569" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input value={varSearch} onChange={e => setVarSearch(e.target.value)} placeholder="Search variables" style={{ background: 'none', border: 'none', outline: 'none', color: '#94a3b8', fontSize: 12, fontFamily: 'inherit', flex: 1 }} />
+          </div>
+        </div>
+        <div style={{ overflowY: 'auto', flex: 1 }}>
+          <div style={{ padding: '8px 20px 4px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#475569" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
+              <span style={{ color: '#475569', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em' }}>VAPI VARIABLES</span>
+              <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#1e2d3d', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569', fontSize: 10, marginLeft: 'auto' }}>8</div>
+            </div>
+            {VAPI_VARS.filter(v => v.includes(varSearch.toLowerCase())).map(v => (
+              <div key={v} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #0d1520' }}>
+                <span style={{ color: '#10b981', fontSize: 12, fontFamily: 'inherit' }}>{`{{${v}}}`}</span>
+                <span style={{ color: '#334155', fontSize: 11 }}>vapi variable</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ padding: '16px 20px 4px', borderTop: '1px solid #111a26' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#475569" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
+              <span style={{ color: '#475569', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em' }}>EXTRACTED VARIABLES</span>
+              <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#1e2d3d', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569', fontSize: 10, marginLeft: 'auto' }}>0</div>
+            </div>
+            <div style={{ color: '#334155', fontSize: 12, padding: '4px 0 8px' }}>No variables defined in conversation nodes</div>
+          </div>
+          <div style={{ padding: '16px 20px 16px', borderTop: '1px solid #111a26' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#475569" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
+              <span style={{ color: '#475569', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em' }}>REFERENCED VARIABLES</span>
+              <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#1e2d3d', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569', fontSize: 10, marginLeft: 'auto' }}>0</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
 
+// ─── Global Prompt Panel ───────────────────────────────────────────────────────
+
+const GlobalPromptPanel = ({ value, onChange, onClose, mark }) => (
+  <div style={{ position: 'absolute', inset: 0, background: '#00000060', zIndex: 400, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: 60 }} onClick={onClose}>
+    <div style={{ background: '#0a0f1a', border: '1px solid #1e2d3d', borderRadius: 12, width: 460, display: 'flex', flexDirection: 'column', boxShadow: '0 24px 64px #000e', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '18px 20px 14px', borderBottom: '1px solid #111a26' }}>
+        <div style={{ width: 28, height: 28, borderRadius: 7, background: '#10b98120', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981' }}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </div>
+        <span style={{ color: '#e2e8f0', fontSize: 15, fontWeight: 700, flex: 1 }}>Global Prompt</span>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#475569', padding: 4 }}><X size={16}/></button>
+      </div>
+      <div style={{ padding: '18px 20px 20px' }}>
+        <div style={{ color: '#94a3b8', fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Prompt</div>
+        <div style={{ color: '#334155', fontSize: 11, marginBottom: 10 }}>Define your assistant's core personality across all conversation nodes</div>
+        <textarea
+          value={value}
+          onChange={e => { onChange(e.target.value); mark(); }}
+          placeholder={`## Identity & Purpose\n\nYou are Alex, a customer service voice assistant for TechSolutions. Your primary purpose is to help customers resolve issues with their products, answer questions about services, and ensure a satisfying support experience.`}
+          rows={12}
+          style={{ width: '100%', background: '#0d1520', border: '1px solid #1e2d3d', borderRadius: 8, color: '#cbd5e1', fontSize: 12, fontFamily: 'inherit', padding: '12px', outline: 'none', resize: 'vertical', lineHeight: 1.7, boxSizing: 'border-box' }}
+        />
+      </div>
+    </div>
+  </div>
+);
+
+// ─── Global Voice Panel ────────────────────────────────────────────────────────
+
+const GlobalVoicePanel = ({ provider, voice, onProviderChange, onVoiceChange, onClose, mark }) => (
+  <div style={{ position: 'absolute', inset: 0, background: '#00000060', zIndex: 400, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: 60 }} onClick={onClose}>
+    <div style={{ background: '#0a0f1a', border: '1px solid #1e2d3d', borderRadius: 12, width: 420, display: 'flex', flexDirection: 'column', boxShadow: '0 24px 64px #000e', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '18px 20px 14px', borderBottom: '1px solid #111a26' }}>
+        <div style={{ width: 28, height: 28, borderRadius: 7, background: '#10b98120', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981' }}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+        </div>
+        <span style={{ color: '#e2e8f0', fontSize: 15, fontWeight: 700, flex: 1 }}>Global Voice</span>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#475569', padding: 4 }}><X size={16}/></button>
+      </div>
+      <div style={{ padding: '18px 20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div>
+          <div style={{ color: '#94a3b8', fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Voice</div>
+          <div style={{ color: '#334155', fontSize: 11 }}>Define the default voice in the workflow. Tool messages will fallback to this voice.</div>
+        </div>
+        <div>
+          <div style={{ color: '#94a3b8', fontSize: 11, marginBottom: 8, fontWeight: 500 }}>Voice Provider</div>
+          <div style={{ position: 'relative' }}>
+            <select
+              value={provider}
+              onChange={e => { onProviderChange(e.target.value); mark(); }}
+              style={{ width: '100%', background: '#0d1520', border: '1px solid #1e2d3d', borderRadius: 8, color: '#cbd5e1', fontSize: 13, fontFamily: 'inherit', padding: '10px 12px', outline: 'none', appearance: 'none', cursor: 'pointer' }}
+            >
+              {['Vapi', 'ElevenLabs', 'Azure', 'Google', 'OpenAI', 'Deepgram'].map(p => <option key={p}>{p}</option>)}
+            </select>
+            <div style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#475569', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div style={{ color: '#94a3b8', fontSize: 11, marginBottom: 8, fontWeight: 500 }}>Voice</div>
+          <div style={{ position: 'relative' }}>
+            <select
+              value={voice}
+              onChange={e => { onVoiceChange(e.target.value); mark(); }}
+              style={{ width: '100%', background: '#0d1520', border: '1px solid #1e2d3d', borderRadius: 8, color: '#cbd5e1', fontSize: 13, fontFamily: 'inherit', padding: '10px 12px', outline: 'none', appearance: 'none', cursor: 'pointer' }}
+            >
+              {['Elliot', 'Aria', 'Davis', 'Jenny', 'Guy', 'Ana'].map(v => <option key={v}>{v}</option>)}
+            </select>
+            <div style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#475569' }}>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-const WorkflowCanvas = ({ workflowName = 'Untitled Workflow', initialNodes, initialEdges, onSave, onClose }) => {
+const WorkflowCanvas = ({ workflowName: initialWorkflowName = 'Untitled Workflow', initialNodes, initialEdges, onSave, onClose }) => {
   const [wfId] = useState(() => shortUuid());
+  const [wfName, setWfName] = useState(initialWorkflowName);
+  const [editingName, setEditingName] = useState(false);
+  const nameInputRef = useRef(null);
   const [nodes, setNodes] = useState(initialNodes || [{
     id: 'start', type: 'conversation', label: 'introduction', isStart: true,
     x: 320, y: 200, data: { firstMessage: '', prompt: '' },
@@ -343,24 +490,46 @@ const WorkflowCanvas = ({ workflowName = 'Untitled Workflow', initialNodes, init
   const [connecting, setConnecting] = useState(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [showAddPanel, setShowAddPanel] = useState(false);
+  const [pendingPortFrom, setPendingPortFrom] = useState(null);
   const [saving, setSaving] = useState(false);
   const [unsaved, setUnsaved] = useState(false);
+  const [showJson, setShowJson] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showVariables, setShowVariables] = useState(false);
+  const [showGlobalPrompt, setShowGlobalPrompt] = useState(false);
+  const [showGlobalVoice, setShowGlobalVoice] = useState(false);
+  const [globalPrompt, setGlobalPrompt] = useState('');
+  const [globalVoiceProvider, setGlobalVoiceProvider] = useState('Vapi');
+  const [globalVoiceName, setGlobalVoiceName] = useState('Elliot');
 
   const canvasRef = useRef(null);
   const mark = () => setUnsaved(true);
 
+  // Auto-focus name input when editing
+  useEffect(() => {
+    if (editingName && nameInputRef.current) {
+      nameInputRef.current.focus();
+      nameInputRef.current.select();
+    }
+  }, [editingName]);
+
+  // Close dropdowns on outside click
   useEffect(() => {
     const h = e => {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey) {
         const m = { c: 'conversation', a: 'api_request', f: 'transfer_call', e: 'end_call', o: 'tool' };
         if (m[e.key.toLowerCase()]) { addNode(m[e.key.toLowerCase()]); e.preventDefault(); }
       }
-      if (e.key === 'Escape') { setConnecting(null); setSelected(null); setShowAddPanel(false); }
+      if (e.key === 'Escape') {
+        setConnecting(null); setSelected(null); setShowAddPanel(false);
+        setShowMoreMenu(false); setShowVariables(false); setShowGlobalPrompt(false); setShowGlobalVoice(false);
+        if (editingName) setEditingName(false);
+      }
       if ((e.key === 'Delete' || e.key === 'Backspace') && selected && e.target === document.body) deleteNode(selected);
     };
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
-  }, [selected]);
+  }, [selected, editingName]);
 
   const handleDragStart = useCallback((e, nodeId) => {
     if (connecting) return;
@@ -375,7 +544,8 @@ const WorkflowCanvas = ({ workflowName = 'Untitled Workflow', initialNodes, init
     if (e.button === 1 || e.altKey) {
       setIsPanning(true); setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y }); e.preventDefault();
     } else if (e.button === 0) {
-      setSelected(null); setShowAddPanel(false); if (connecting) setConnecting(null);
+      setSelected(null); setShowAddPanel(false); setShowMoreMenu(false);
+      if (connecting) setConnecting(null);
     }
   }, [pan, connecting]);
 
@@ -415,13 +585,39 @@ const WorkflowCanvas = ({ workflowName = 'Untitled Workflow', initialNodes, init
     setConnecting(null); mark();
   }, [connecting]);
 
-  const addNode = type => {
+  const addNode = (type, atX, atY) => {
     const rect = canvasRef.current?.getBoundingClientRect();
-    const cx = rect ? (rect.width / 2 - pan.x) / zoom : 400;
-    const cy = rect ? (rect.height / 2 - pan.y) / zoom : 300;
+    const cx = atX !== undefined ? atX : rect ? (rect.width / 2 - pan.x) / zoom : 400;
+    const cy = atY !== undefined ? atY : rect ? (rect.height / 2 - pan.y) / zoom : 300;
     const id = uid();
-    setNodes(prev => [...prev, { id, type, label: NODE_DEFS[type]?.label || type, x: snp(cx - NODE_W / 2 + (Math.random() * 100 - 50)), y: snp(cy - 120 + (Math.random() * 100 - 50)), data: {} }]);
+    setNodes(prev => [...prev, { id, type, label: NODE_DEFS[type]?.label || type, x: snp(cx - NODE_W / 2), y: snp(cy), data: {} }]);
     setSelected(id); mark();
+    return id;
+  };
+
+  const handleAddFromPort = (fromNodeId) => {
+    setPendingPortFrom(fromNodeId);
+    setShowAddPanel(true);
+  };
+
+  const addNodeConnected = (type) => {
+    const fromNode = nodes.find(n => n.id === pendingPortFrom);
+    const atX = fromNode ? fromNode.x : 400;
+    const atY = fromNode ? fromNode.y + nodeH(fromNode) + 120 : 400;
+    const newId = uid();
+    setNodes(prev => [...prev, { id: newId, type, label: NODE_DEFS[type]?.label || type, x: snp(atX), y: snp(atY), data: {} }]);
+    setEdges(prev => [...prev, { id: uid(), from: pendingPortFrom, to: newId, label: '' }]);
+    setSelected(newId);
+    setPendingPortFrom(null);
+    mark();
+  };
+
+  const duplicateNode = (id) => {
+    const node = nodes.find(n => n.id === id);
+    if (!node) return;
+    const newId = uid();
+    setNodes(prev => [...prev, { ...JSON.parse(JSON.stringify(node)), id: newId, isStart: false, x: node.x + 40, y: node.y + 40 }]);
+    setSelected(newId); mark();
   };
 
   const deleteNode = id => {
@@ -484,17 +680,44 @@ const WorkflowCanvas = ({ workflowName = 'Untitled Workflow', initialNodes, init
         @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap');
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
         * { box-sizing: border-box; }
       `}</style>
 
       {/* Top bar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 16px', height: 52, flexShrink: 0, background: '#080d14', borderBottom: '1px solid #111a26', zIndex: 200 }}>
-        {onClose && (
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#475569', padding: '4px 6px', fontSize: 18, lineHeight: 1 }}>←</button>
-        )}
-        <div>
-          <div style={{ color: '#e2e8f0', fontSize: 13, fontWeight: 600 }}>{workflowName}</div>
-          <div style={{ color: '#2a3d52', fontSize: 10, letterSpacing: '0.02em' }}>{wfId}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {onClose && (
+            <button onClick={onClose} style={{ background: '#0d1520', border: '1px solid #1e2d3d', borderRadius: 7, cursor: 'pointer', color: '#475569', padding: '6px 10px', fontSize: 18, lineHeight: 1, display: 'flex', alignItems: 'center' }}>←</button>
+          )}
+          <div>
+            {editingName ? (
+              <input
+                ref={nameInputRef}
+                value={wfName}
+                onChange={e => { setWfName(e.target.value); mark(); }}
+                onBlur={() => setEditingName(false)}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setEditingName(false); }}
+                style={{ background: '#0d1520', border: '1px solid #10b981', borderRadius: 6, outline: 'none', color: '#e2e8f0', fontSize: 13, fontWeight: 600, fontFamily: 'inherit', padding: '3px 8px', width: 200 }}
+              />
+            ) : (
+              <div
+                onClick={() => setEditingName(true)}
+                style={{ color: '#e2e8f0', fontSize: 13, fontWeight: 600, cursor: 'text', padding: '3px 4px', borderRadius: 5, display: 'flex', alignItems: 'center', gap: 6 }}
+                onMouseEnter={e => e.currentTarget.style.background = '#0d1520'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              >
+                {wfName}
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#475569" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </div>
+            )}
+            <div style={{ color: '#2a3d52', fontSize: 10, letterSpacing: '0.02em', display: 'flex', alignItems: 'center', gap: 6, paddingLeft: 4, marginTop: 1 }}>
+              {wfId}
+              <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#1e3a52', padding: 0, lineHeight: 1 }} title="Copy ID" onClick={() => navigator.clipboard?.writeText(wfId)}>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              </button>
+            </div>
+          </div>
         </div>
 
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -504,7 +727,7 @@ const WorkflowCanvas = ({ workflowName = 'Untitled Workflow', initialNodes, init
               Unsaved changes
             </div>
           )}
-          <button style={{ background: 'none', border: '1px solid #111a26', borderRadius: 7, cursor: 'pointer', color: '#475569', padding: '6px 10px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'inherit' }}>
+          <button onClick={() => setShowJson(v => !v)} style={{ background: showJson ? '#10b98118' : 'none', border: `1px solid ${showJson ? '#10b98150' : '#111a26'}`, borderRadius: 7, cursor: 'pointer', color: showJson ? '#10b981' : '#475569', padding: '6px 10px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'inherit' }}>
             <Code2 size={13} />
           </button>
           <button style={{ background: 'none', border: '1px solid #22c55e40', borderRadius: 7, cursor: 'pointer', color: '#22c55e', padding: '6px 14px', fontSize: 12, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'inherit' }}>
@@ -513,92 +736,238 @@ const WorkflowCanvas = ({ workflowName = 'Untitled Workflow', initialNodes, init
           <button onClick={handleSave} disabled={saving} style={{ background: '#10b981', border: 'none', borderRadius: 7, cursor: 'pointer', color: '#fff', padding: '7px 18px', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'inherit', opacity: saving ? 0.7 : 1 }}>
             {saving ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={13}/>} Save
           </button>
-          <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#334155', padding: 4 }}><MoreHorizontal size={16}/></button>
+          <div style={{ position: 'relative' }}>
+            <button onClick={() => setShowMoreMenu(v => !v)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#475569', padding: '6px', borderRadius: 6, display: 'flex', alignItems: 'center' }}
+              onMouseEnter={e => e.currentTarget.style.color = '#94a3b8'}
+              onMouseLeave={e => e.currentTarget.style.color = '#475569'}
+            ><MoreHorizontal size={16}/></button>
+            {showMoreMenu && (
+              <div style={{ position: 'absolute', right: 0, top: 36, background: '#0d1520', border: '1px solid #1e2d3d', borderRadius: 10, boxShadow: '0 12px 36px #000c', zIndex: 300, minWidth: 170, overflow: 'hidden' }}>
+                <button onClick={() => { setUnsaved(false); setShowMoreMenu(false); }} style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '11px 16px', background: 'none', border: 'none', cursor: 'pointer', color: '#cbd5e1', fontSize: 13, fontFamily: 'inherit', textAlign: 'left' }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#ffffff08'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                >
+                  <span style={{ fontSize: 16 }}>🗑️</span> Discard Changes
+                </button>
+                <button onClick={() => { onClose?.(); }} style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '11px 16px', background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontSize: 13, fontFamily: 'inherit', textAlign: 'left' }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#ffffff08'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg> Delete
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Canvas + sidebar */}
-      <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-        <Sidebar onAddNode={addNode} showAddPanel={showAddPanel} setShowAddPanel={setShowAddPanel} />
+      {/* Canvas + overlays */}
+      <div style={{ flex: 1, position: 'relative', overflow: 'hidden', display: 'flex' }}>
 
-        {/* Bottom toolbar */}
-        <div style={{ position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 1, background: '#080d14', border: '1px solid #111a26', borderRadius: 12, padding: '5px 8px', zIndex: 100 }}>
-          {toolbarItems.map((item, i) =>
-            item === null
-              ? <div key={i} style={{ width: 1, height: 18, background: '#111a26', margin: '0 4px' }} />
-              : (
-                <button key={i} title={item.title} onClick={item.action} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#334155', padding: '5px 7px', borderRadius: 6, display: 'flex', alignItems: 'center', lineHeight: 1 }}
-                  onMouseEnter={e => { e.currentTarget.style.color = '#64748b'; e.currentTarget.style.background = '#ffffff08'; }}
-                  onMouseLeave={e => { e.currentTarget.style.color = '#334155'; e.currentTarget.style.background = 'none'; }}
-                >{item.icon}</button>
-              )
+        {/* Canvas area */}
+        <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+
+          {/* Modals & Panels */}
+          {showJson && <JsonModal wfName={wfName} nodes={nodes} edges={edges} onClose={() => setShowJson(false)} />}
+          {showVariables && <VariablesPanel onClose={() => setShowVariables(false)} />}
+          {showGlobalPrompt && <GlobalPromptPanel value={globalPrompt} onChange={setGlobalPrompt} onClose={() => setShowGlobalPrompt(false)} mark={mark} />}
+          {showGlobalVoice && <GlobalVoicePanel provider={globalVoiceProvider} voice={globalVoiceName} onProviderChange={setGlobalVoiceProvider} onVoiceChange={setGlobalVoiceName} onClose={() => setShowGlobalVoice(false)} mark={mark} />}
+
+          {/* Sidebar buttons */}
+          <div style={{ position: 'absolute', left: 16, top: 14, zIndex: 120, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <button
+              onClick={() => { setPendingPortFrom(null); setShowAddPanel(v => !v); setShowVariables(false); }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                background: showAddPanel ? '#10b98118' : '#0d1520',
+                border: `1px solid ${showAddPanel ? '#10b981' : '#1e2d3d'}`,
+                borderRadius: 8, cursor: 'pointer',
+                color: showAddPanel ? '#10b981' : '#94a3b8',
+                padding: '8px 16px', fontSize: 12, fontWeight: 500, fontFamily: 'inherit',
+              }}
+            >
+              <Plus size={14} color="#10b981" /> Add a Node
+            </button>
+            {[
+              { label: 'Global Prompt', icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>, action: () => { setShowGlobalPrompt(v => !v); setShowGlobalVoice(false); setShowVariables(false); setShowAddPanel(false); }, active: showGlobalPrompt },
+              { label: 'Global Voice', icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>, action: () => { setShowGlobalVoice(v => !v); setShowGlobalPrompt(false); setShowVariables(false); setShowAddPanel(false); }, active: showGlobalVoice },
+              { label: 'Variables', icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>, action: () => { setShowVariables(v => !v); setShowGlobalPrompt(false); setShowGlobalVoice(false); setShowAddPanel(false); }, active: showVariables },
+            ].map((btn, i) => (
+              <button key={i} onClick={btn.action} style={{ display: 'flex', alignItems: 'center', gap: 8, background: btn.active ? '#10b98118' : '#0d1520', border: `1px solid ${btn.active ? '#10b98150' : '#1e2d3d'}`, borderRadius: 8, cursor: 'pointer', color: btn.active ? '#10b981' : '#94a3b8', padding: '8px 16px', fontSize: 12, fontWeight: 500, fontFamily: 'inherit', whiteSpace: 'nowrap' }}
+                onMouseEnter={e => { if (!btn.active) e.currentTarget.style.borderColor = '#2a3d52'; }}
+                onMouseLeave={e => { if (!btn.active) e.currentTarget.style.borderColor = '#1e2d3d'; }}
+              >
+                <span style={{ color: '#10b981' }}>{btn.icon}</span> {btn.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Floating add panel */}
+          {showAddPanel && (
+            <AddPanel
+              onAdd={pendingPortFrom ? addNodeConnected : (type) => { addNode(type); }}
+              onClose={() => { setShowAddPanel(false); setPendingPortFrom(null); }}
+            />
           )}
-        </div>
 
-        {/* Canvas */}
-        <div ref={canvasRef} style={{ width: '100%', height: '100%', overflow: 'hidden', cursor: isPanning ? 'grabbing' : connecting ? 'crosshair' : 'default' }}
-          onMouseDown={handleCanvasDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}
-        >
-          {/* Dot grid */}
-          <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
-            <defs>
-              <pattern id="dg" x={pan.x % (18 * zoom)} y={pan.y % (18 * zoom)} width={18 * zoom} height={18 * zoom} patternUnits="userSpaceOnUse">
-                <circle cx={9 * zoom} cy={9 * zoom} r={0.8} fill="#161f2e" />
-              </pattern>
-            </defs>
-            <rect width="100%" height="100%" fill="url(#dg)" />
-          </svg>
+          {/* Bottom toolbar */}
+          <div style={{ position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 1, background: '#080d14', border: '1px solid #111a26', borderRadius: 12, padding: '5px 8px', zIndex: 100 }}>
+            {toolbarItems.map((item, i) =>
+              item === null
+                ? <div key={i} style={{ width: 1, height: 18, background: '#111a26', margin: '0 4px' }} />
+                : (
+                  <button key={i} title={item.title} onClick={item.action} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#334155', padding: '5px 7px', borderRadius: 6, display: 'flex', alignItems: 'center', lineHeight: 1 }}
+                    onMouseEnter={e => { e.currentTarget.style.color = '#64748b'; e.currentTarget.style.background = '#ffffff08'; }}
+                    onMouseLeave={e => { e.currentTarget.style.color = '#334155'; e.currentTarget.style.background = 'none'; }}
+                  >{item.icon}</button>
+                )
+            )}
+          </div>
 
-          <div style={{ position: 'absolute', inset: 0, transformOrigin: '0 0', transform: `translate(${pan.x}px,${pan.y}px) scale(${zoom})` }}>
-            {/* Edges */}
-            <svg style={{ position: 'absolute', inset: 0, width: '9999px', height: '9999px', overflow: 'visible', pointerEvents: 'none' }}>
+          {/* Canvas */}
+          <div ref={canvasRef} style={{ width: '100%', height: '100%', overflow: 'hidden', cursor: isPanning ? 'grabbing' : connecting ? 'crosshair' : 'default' }}
+            onMouseDown={handleCanvasDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}
+          >
+            {/* Dot grid */}
+            <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
               <defs>
-                <marker id="arrw" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto">
-                  <path d="M0,0 L0,6 L7,3 z" fill="#1e3a52" />
-                </marker>
-                <marker id="arrw-d" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto">
-                  <path d="M0,0 L0,6 L7,3 z" fill="#334155" />
-                </marker>
+                <pattern id="dg" x={pan.x % (18 * zoom)} y={pan.y % (18 * zoom)} width={18 * zoom} height={18 * zoom} patternUnits="userSpaceOnUse">
+                  <circle cx={9 * zoom} cy={9 * zoom} r={0.8} fill="#161f2e" />
+                </pattern>
               </defs>
-              {edges.map(edge => {
-                const fn = nodes.find(n => n.id === edge.from), tn = nodes.find(n => n.id === edge.to);
-                if (!fn || !tn) return null;
-                const fp = outPos(fn), tp = inPos(tn);
-                const d = bezier(fp.x, fp.y, tp.x, tp.y);
-                const mx = (fp.x + tp.x) / 2, my = (fp.y + tp.y) / 2;
-                return (
-                  <g key={edge.id} style={{ pointerEvents: 'all' }}>
-                    <path d={d} fill="none" stroke="transparent" strokeWidth={14} style={{ cursor: 'pointer' }} onClick={() => deleteEdge(edge.id)} />
-                    <path d={d} fill="none" stroke="#1e3a52" strokeWidth={2} markerEnd="url(#arrw)" />
-                    <EdgeLabel x={mx} y={my} label={edge.label} onDelete={() => deleteEdge(edge.id)} />
-                  </g>
-                );
-              })}
-              {draftPath && <path d={draftPath} fill="none" stroke="#334155" strokeWidth={2} strokeDasharray="6 4" markerEnd="url(#arrw-d)" />}
+              <rect width="100%" height="100%" fill="url(#dg)" />
             </svg>
 
-            {/* Nodes */}
-            {nodes.map(node => (
-              <VNode key={node.id} node={node} selected={selected === node.id} onSelect={setSelected} onDragStart={handleDragStart} onOutputMouseDown={handleOutputMouseDown} onInputMouseUp={handleInputMouseUp} isConnecting={!!connecting} onDelete={deleteNode} onUpdateNode={updateNode} />
-            ))}
-          </div>
-        </div>
+            <div style={{ position: 'absolute', inset: 0, transformOrigin: '0 0', transform: `translate(${pan.x}px,${pan.y}px) scale(${zoom})` }}>
+              {/* Edges */}
+              <svg style={{ position: 'absolute', inset: 0, width: '9999px', height: '9999px', overflow: 'visible', pointerEvents: 'none' }}>
+                <defs>
+                  <marker id="arrw" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L7,3 z" fill="#1e3a52" />
+                  </marker>
+                  <marker id="arrw-d" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L7,3 z" fill="#334155" />
+                  </marker>
+                </defs>
+                {edges.map(edge => {
+                  const fn = nodes.find(n => n.id === edge.from), tn = nodes.find(n => n.id === edge.to);
+                  if (!fn || !tn) return null;
+                  const fp = outPos(fn), tp = inPos(tn);
+                  const d = bezier(fp.x, fp.y, tp.x, tp.y);
+                  const mx = (fp.x + tp.x) / 2, my = (fp.y + tp.y) / 2;
+                  return (
+                    <g key={edge.id} style={{ pointerEvents: 'all' }}>
+                      <path d={d} fill="none" stroke="transparent" strokeWidth={14} style={{ cursor: 'pointer' }} onClick={() => deleteEdge(edge.id)} />
+                      <path d={d} fill="none" stroke="#1e3a52" strokeWidth={2} strokeDasharray={edge.label ? '6 3' : '0'} markerEnd="url(#arrw)" />
+                      {edge.label && (
+                        <g style={{ pointerEvents: 'all' }}>
+                          <rect x={mx - 70} y={my - 14} width={140} height={28} rx={14} fill="#78350f" stroke="#92400e" strokeWidth={1} style={{ cursor: 'pointer' }} onClick={() => deleteEdge(edge.id)} />
+                          <text x={mx} y={my + 5} textAnchor="middle" fill="#fde68a" fontSize={11} fontFamily="inherit" style={{ pointerEvents: 'none' }}>{edge.label}</text>
+                        </g>
+                      )}
+                    </g>
+                  );
+                })}
+                {draftPath && <path d={draftPath} fill="none" stroke="#334155" strokeWidth={2} strokeDasharray="6 4" markerEnd="url(#arrw-d)" />}
+              </svg>
 
-        {/* Zoom % + minimap */}
-        <div style={{ position: 'absolute', bottom: 16, right: 16, display: 'flex', alignItems: 'flex-end', gap: 8, zIndex: 100 }}>
-          <div style={{ background: '#080d14', border: '1px solid #111a26', borderRadius: 8, overflow: 'hidden', width: 100, height: 66, position: 'relative' }}>
-            {nodes.map((n, i) => (
-              <div key={i} style={{ position: 'absolute', left: Math.max(2, Math.min(82, (n.x / 1400) * 100)), top: Math.max(2, Math.min(54, (n.y / 900) * 66)), width: 16, height: 10, borderRadius: 2, background: (NODE_DEFS[n.type]?.color || '#3b82f6') + '50' }} />
-            ))}
-            <div style={{ position: 'absolute', bottom: 4, right: 6, color: '#22c55e', fontSize: 10, display: 'flex', alignItems: 'center', gap: 4 }}>
-              <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e' }} />
-              Composer
+              {/* Nodes */}
+              {nodes.map(node => (
+                <VNode key={node.id} node={node} selected={selected === node.id} onSelect={id => { setSelected(id); setShowAddPanel(false); }} onDragStart={handleDragStart} onOutputMouseDown={handleOutputMouseDown} onInputMouseUp={handleInputMouseUp} isConnecting={!!connecting} onDelete={deleteNode} onDuplicate={duplicateNode} onUpdateNode={updateNode} onAddFromPort={handleAddFromPort} />
+              ))}
             </div>
           </div>
-          <div style={{ background: '#080d14', border: '1px solid #111a26', borderRadius: 6, padding: '4px 10px', color: '#2a3d52', fontSize: 11 }}>
-            {Math.round(zoom * 100)}%
+
+          {/* Zoom % + minimap */}
+          <div style={{ position: 'absolute', bottom: 16, right: 16, display: 'flex', alignItems: 'flex-end', gap: 8, zIndex: 100 }}>
+            <div style={{ background: '#080d14', border: '1px solid #111a26', borderRadius: 8, overflow: 'hidden', width: 100, height: 66, position: 'relative' }}>
+              {nodes.map((n, i) => (
+                <div key={i} style={{ position: 'absolute', left: Math.max(2, Math.min(82, (n.x / 1400) * 100)), top: Math.max(2, Math.min(54, (n.y / 900) * 66)), width: 16, height: 10, borderRadius: 2, background: (NODE_DEFS[n.type]?.color || '#3b82f6') + '50' }} />
+              ))}
+            </div>
+            <div style={{ background: '#080d14', border: '1px solid #111a26', borderRadius: 6, padding: '4px 10px', color: '#2a3d52', fontSize: 11 }}>
+              {Math.round(zoom * 100)}%
+            </div>
           </div>
-        </div>
+        </div>{/* end canvas area */}
+
+        {/* Right detail panel */}
+        {selected && (() => {
+          const node = nodes.find(n => n.id === selected);
+          if (!node) return null;
+          const def = NODE_DEFS[node.type] || NODE_DEFS.conversation;
+          return (
+            <div style={{
+              width: 320, background: '#0a0f1a', borderLeft: '1px solid #111a26',
+              display: 'flex', flexDirection: 'column', flexShrink: 0,
+              overflowY: 'auto', zIndex: 50,
+              animation: 'slideIn 0.15s ease',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '16px 16px 14px', borderBottom: '1px solid #111a26' }}>
+                <div style={{ width: 28, height: 28, borderRadius: 7, background: def.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0 }}>
+                  {def.icon}
+                </div>
+                <span style={{ color: '#e2e8f0', fontSize: 14, fontWeight: 600, flex: 1 }}>{NODE_DEFS[node.type]?.label || 'Node'}</span>
+                <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#475569', padding: 4 }}><X size={15}/></button>
+              </div>
+
+              <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div>
+                  <div style={{ fontSize: 11, color: '#475569', marginBottom: 6, fontWeight: 500 }}>Node Type</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#0d1520', border: '1px solid #1e2d3d', borderRadius: 8, padding: '8px 12px' }}>
+                    <div style={{ width: 20, height: 20, borderRadius: 5, background: def.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>{def.icon}</div>
+                    <span style={{ color: '#cbd5e1', fontSize: 12 }}>{NODE_DEFS[node.type]?.label}</span>
+                  </div>
+                </div>
+
+                {node.type === 'conversation' && (
+                  <>
+                    <div>
+                      <div style={{ fontSize: 11, color: '#475569', marginBottom: 4, fontWeight: 500 }}>First Message</div>
+                      <div style={{ fontSize: 10, color: '#334155', marginBottom: 6 }}>Say something… Use {'{{variableName}}'} for dynamic content</div>
+                      <textarea
+                        value={node.data?.firstMessage || ''}
+                        onChange={e => updateNode(node.id, { data: { ...node.data, firstMessage: e.target.value } })}
+                        rows={3}
+                        placeholder="Say something… Use {{variableName}} for dynamic content"
+                        style={{ width: '100%', background: '#0d1520', border: '1px solid #1e2d3d', borderRadius: 8, color: '#cbd5e1', fontSize: 12, fontFamily: 'inherit', padding: '8px 10px', outline: 'none', resize: 'vertical', lineHeight: 1.6, boxSizing: 'border-box' }}
+                      />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 11, color: '#475569', marginBottom: 4, fontWeight: 500 }}>Prompt</div>
+                      <div style={{ fontSize: 10, color: '#334155', marginBottom: 6 }}>Enter the prompt for this conversation node</div>
+                      <textarea
+                        value={node.data?.prompt || ''}
+                        onChange={e => updateNode(node.id, { data: { ...node.data, prompt: e.target.value } })}
+                        rows={6}
+                        placeholder={`Enter a prompt for the conversation. Use {{variableName}} for dynamic content`}
+                        style={{ width: '100%', background: '#0d1520', border: '1px solid #1e2d3d', borderRadius: 8, color: '#cbd5e1', fontSize: 12, fontFamily: 'inherit', padding: '8px 10px', outline: 'none', resize: 'vertical', lineHeight: 1.6, boxSizing: 'border-box' }}
+                      />
+                    </div>
+                  </>
+                )}
+
+                {[
+                  { label: 'Global Node', sub: 'Make this node available from any point in the conversation' },
+                  { label: 'Tools', sub: 'Attach tools that can be used during the conversation' },
+                  { label: 'Model Settings', sub: 'Configure the LLM model' },
+                  { label: 'Voice Settings', sub: 'Configure the text-to-speech engine' },
+                  { label: 'Transcriber Settings', sub: 'Configure the speech-to-text engine' },
+                ].map((sec, i) => (
+                  <div key={i} style={{ borderTop: '1px solid #111a26', paddingTop: 14 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}>
+                      <div>
+                        <div style={{ color: '#94a3b8', fontSize: 12, fontWeight: 500 }}>{sec.label}</div>
+                        <div style={{ color: '#334155', fontSize: 10, marginTop: 2 }}>{sec.sub}</div>
+                      </div>
+                      <ChevronDown size={14} color="#334155" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
