@@ -507,6 +507,140 @@ const WorkflowCanvas = ({ workflowName: initialWorkflowName = 'Untitled Workflow
   const canvasRef = useRef(null);
   const mark = () => setUnsaved(true);
 
+  // ─── Toggle Switch Component ──────────────────────────────────────────────────
+  const Toggle = ({ checked, onChange, label }) => (
+    <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+      <div style={{ width: 36, height: 20, background: checked ? '#10b981' : '#1e2d3d', borderRadius: 10, position: 'relative', transition: 'background 0.2s' }}>
+        <div style={{ position: 'absolute', top: 2, left: checked ? 18 : 2, width: 16, height: 16, background: '#fff', borderRadius: '50%', transition: 'left 0.2s' }} />
+        <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} style={{ position: 'absolute', opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }} />
+      </div>
+      {label && <span style={{ color: '#94a3b8', fontSize: 12 }}>{label}</span>}
+    </label>
+  );
+
+  // ─── Collapsible Section ────────────────────────────────────────────────────────
+  const CollapsibleSection = ({ title, icon, children, defaultOpen = false }) => {
+    const [isOpen, setIsOpen] = useState(defaultOpen);
+    return (
+      <div style={{ borderTop: '1px solid #111a26', paddingTop: 14 }}>
+        <div onClick={() => setIsOpen(!isOpen)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', marginBottom: isOpen ? 12 : 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ color: '#10b981', fontSize: 14 }}>{icon}</span>
+            <div>
+              <div style={{ color: '#94a3b8', fontSize: 12, fontWeight: 500 }}>{title}</div>
+            </div>
+          </div>
+          <ChevronDown size={14} color="#334155" style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+        </div>
+        {isOpen && <div>{children}</div>}
+      </div>
+    );
+  };
+
+  // ─── Select Input ────────────────────────────────────────────────────────────────
+  const SelectInput = ({ value, onChange, options, placeholder }) => (
+    <div style={{ position: 'relative' }}>
+      <select
+        value={value || ''}
+        onChange={e => onChange(e.target.value)}
+        style={{ width: '100%', background: '#0d1520', border: '1px solid #1e2d3d', borderRadius: 8, color: value ? '#cbd5e1' : '#64748b', fontSize: 12, fontFamily: 'inherit', padding: '8px 12px', outline: 'none', appearance: 'none', cursor: 'pointer' }}
+      >
+        {placeholder && <option value="">{placeholder}</option>}
+        {options.map(o => <option key={o} value={o}>{o}</option>)}
+      </select>
+      <div style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#475569' }}>
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+    </div>
+  );
+
+  // ─── Text Input ─────────────────────────────────────────────────────────────────
+  const TextInput = ({ value, onChange, placeholder, type = 'text' }) => (
+    <input
+      type={type}
+      value={value || ''}
+      onChange={e => onChange(e.target.value)}
+      placeholder={placeholder}
+      style={{ width: '100%', background: '#0d1520', border: '1px solid #1e2d3d', borderRadius: 8, color: '#cbd5e1', fontSize: 12, fontFamily: 'inherit', padding: '8px 12px', outline: 'none', boxSizing: 'border-box' }}
+    />
+  );
+
+  // ─── Textarea Input ─────────────────────────────────────────────────────────────
+  const TextAreaInput = ({ value, onChange, placeholder, rows = 3 }) => (
+    <textarea
+      value={value || ''}
+      onChange={e => onChange(e.target.value)}
+      placeholder={placeholder}
+      rows={rows}
+      style={{ width: '100%', background: '#0d1520', border: '1px solid #1e2d3d', borderRadius: 8, color: '#cbd5e1', fontSize: 12, fontFamily: 'inherit', padding: '8px 12px', outline: 'none', resize: 'vertical', lineHeight: 1.6, boxSizing: 'border-box' }}
+    />
+  );
+
+  // ─── Key-Value Pairs ───────────────────────────────────────────────────────────
+  const KeyValuePairs = ({ items, onChange, keyPlaceholder = 'Key', valuePlaceholder = 'Value' }) => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {items?.map((item, i) => (
+        <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <input
+            value={item.key || ''}
+            onChange={e => { const newItems = [...items]; newItems[i].key = e.target.value; onChange(newItems); }}
+            placeholder={keyPlaceholder}
+            style={{ flex: 1, background: '#0d1520', border: '1px solid #1e2d3d', borderRadius: 6, color: '#cbd5e1', fontSize: 12, fontFamily: 'inherit', padding: '6px 10px', outline: 'none' }}
+          />
+          <input
+            value={item.value || ''}
+            onChange={e => { const newItems = [...items]; newItems[i].value = e.target.value; onChange(newItems); }}
+            placeholder={valuePlaceholder}
+            style={{ flex: 1, background: '#0d1520', border: '1px solid #1e2d3d', borderRadius: 6, color: '#cbd5e1', fontSize: 12, fontFamily: 'inherit', padding: '6px 10px', outline: 'none' }}
+          />
+          <button onClick={() => onChange(items.filter((_, idx) => idx !== i))} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 4 }}>
+            <X size={14} />
+          </button>
+        </div>
+      ))}
+      <button
+        onClick={() => onChange([...(items || []), { key: '', value: '' }])}
+        style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: '1px dashed #1e2d3d', borderRadius: 6, color: '#64748b', fontSize: 11, padding: '6px 10px', cursor: 'pointer', width: 'fit-content' }}
+      >
+        <Plus size={12} /> Add
+      </button>
+    </div>
+  );
+
+  // ─── Variable List ─────────────────────────────────────────────────────────────
+  const VariableList = ({ variables, onChange, placeholder = 'Variable name' }) => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {variables?.map((v, i) => (
+        <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <input
+            value={v}
+            onChange={e => { const newVars = [...variables]; newVars[i] = e.target.value; onChange(newVars); }}
+            placeholder={placeholder}
+            style={{ flex: 1, background: '#0d1520', border: '1px solid #1e2d3d', borderRadius: 6, color: '#cbd5e1', fontSize: 12, fontFamily: 'inherit', padding: '6px 10px', outline: 'none' }}
+          />
+          <button onClick={() => onChange(variables.filter((_, idx) => idx !== i))} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 4 }}>
+            <X size={14} />
+          </button>
+        </div>
+      ))}
+      <button
+        onClick={() => onChange([...(variables || []), ''])}
+        style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: '1px dashed #1e2d3d', borderRadius: 6, color: '#64748b', fontSize: 11, padding: '6px 10px', cursor: 'pointer', width: 'fit-content' }}
+      >
+        <Plus size={12} /> Add Variable
+      </button>
+    </div>
+  );
+
+  // ─── Empty State ────────────────────────────────────────────────────────────────
+  const EmptyState = ({ icon, message, action }) => (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 16px', background: '#0d1520', borderRadius: 8, border: '1px dashed #1e2d3d' }}>
+      <span style={{ fontSize: 24, marginBottom: 8 }}>{icon}</span>
+      <div style={{ color: '#475569', fontSize: 11, textAlign: 'center', marginBottom: action ? 12 : 0 }}>{message}</div>
+      {action}
+    </div>
+  );
+
   // Fetch available AI contexts for binding
   useEffect(() => {
     if (showGlobalPrompt) return; // don't fetch while panels are open
@@ -957,141 +1091,7 @@ const WorkflowCanvas = ({ workflowName: initialWorkflowName = 'Untitled Workflow
           </div>
         )}
 
-        // ─── Toggle Switch Component ──────────────────────────────────────────────────
-const Toggle = ({ checked, onChange, label }) => (
-  <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-    <div style={{ width: 36, height: 20, background: checked ? '#10b981' : '#1e2d3d', borderRadius: 10, position: 'relative', transition: 'background 0.2s' }}>
-      <div style={{ position: 'absolute', top: 2, left: checked ? 18 : 2, width: 16, height: 16, background: '#fff', borderRadius: '50%', transition: 'left 0.2s' }} />
-      <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} style={{ position: 'absolute', opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }} />
-    </div>
-    {label && <span style={{ color: '#94a3b8', fontSize: 12 }}>{label}</span>}
-  </label>
-);
-
-// ─── Collapsible Section ────────────────────────────────────────────────────────
-const CollapsibleSection = ({ title, icon, children, defaultOpen = false }) => {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
-  return (
-    <div style={{ borderTop: '1px solid #111a26', paddingTop: 14 }}>
-      <div onClick={() => setIsOpen(!isOpen)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', marginBottom: isOpen ? 12 : 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ color: '#10b981', fontSize: 14 }}>{icon}</span>
-          <div>
-            <div style={{ color: '#94a3b8', fontSize: 12, fontWeight: 500 }}>{title}</div>
-          </div>
-        </div>
-        <ChevronDown size={14} color="#334155" style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
-      </div>
-      {isOpen && <div>{children}</div>}
-    </div>
-  );
-};
-
-// ─── Select Input ────────────────────────────────────────────────────────────────
-const SelectInput = ({ value, onChange, options, placeholder }) => (
-  <div style={{ position: 'relative' }}>
-    <select
-      value={value || ''}
-      onChange={e => onChange(e.target.value)}
-      style={{ width: '100%', background: '#0d1520', border: '1px solid #1e2d3d', borderRadius: 8, color: value ? '#cbd5e1' : '#64748b', fontSize: 12, fontFamily: 'inherit', padding: '8px 12px', outline: 'none', appearance: 'none', cursor: 'pointer' }}
-    >
-      {placeholder && <option value="">{placeholder}</option>}
-      {options.map(o => <option key={o} value={o}>{o}</option>)}
-    </select>
-    <div style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#475569' }}>
-      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
-    </div>
-  </div>
-);
-
-// ─── Text Input ─────────────────────────────────────────────────────────────────
-const TextInput = ({ value, onChange, placeholder, type = 'text' }) => (
-  <input
-    type={type}
-    value={value || ''}
-    onChange={e => onChange(e.target.value)}
-    placeholder={placeholder}
-    style={{ width: '100%', background: '#0d1520', border: '1px solid #1e2d3d', borderRadius: 8, color: '#cbd5e1', fontSize: 12, fontFamily: 'inherit', padding: '8px 12px', outline: 'none', boxSizing: 'border-box' }}
-  />
-);
-
-// ─── Textarea Input ─────────────────────────────────────────────────────────────
-const TextAreaInput = ({ value, onChange, placeholder, rows = 3 }) => (
-  <textarea
-    value={value || ''}
-    onChange={e => onChange(e.target.value)}
-    placeholder={placeholder}
-    rows={rows}
-    style={{ width: '100%', background: '#0d1520', border: '1px solid #1e2d3d', borderRadius: 8, color: '#cbd5e1', fontSize: 12, fontFamily: 'inherit', padding: '8px 12px', outline: 'none', resize: 'vertical', lineHeight: 1.6, boxSizing: 'border-box' }}
-  />
-);
-
-// ─── Key-Value Pairs ───────────────────────────────────────────────────────────
-const KeyValuePairs = ({ items, onChange, keyPlaceholder = 'Key', valuePlaceholder = 'Value' }) => (
-  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-    {items?.map((item, i) => (
-      <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        <input
-          value={item.key || ''}
-          onChange={e => { const newItems = [...items]; newItems[i].key = e.target.value; onChange(newItems); }}
-          placeholder={keyPlaceholder}
-          style={{ flex: 1, background: '#0d1520', border: '1px solid #1e2d3d', borderRadius: 6, color: '#cbd5e1', fontSize: 12, fontFamily: 'inherit', padding: '6px 10px', outline: 'none' }}
-        />
-        <input
-          value={item.value || ''}
-          onChange={e => { const newItems = [...items]; newItems[i].value = e.target.value; onChange(newItems); }}
-          placeholder={valuePlaceholder}
-          style={{ flex: 1, background: '#0d1520', border: '1px solid #1e2d3d', borderRadius: 6, color: '#cbd5e1', fontSize: 12, fontFamily: 'inherit', padding: '6px 10px', outline: 'none' }}
-        />
-        <button onClick={() => onChange(items.filter((_, idx) => idx !== i))} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 4 }}>
-          <X size={14} />
-        </button>
-      </div>
-    ))}
-    <button
-      onClick={() => onChange([...(items || []), { key: '', value: '' }])}
-      style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: '1px dashed #1e2d3d', borderRadius: 6, color: '#64748b', fontSize: 11, padding: '6px 10px', cursor: 'pointer', width: 'fit-content' }}
-    >
-      <Plus size={12} /> Add
-    </button>
-  </div>
-);
-
-// ─── Variable List ─────────────────────────────────────────────────────────────
-const VariableList = ({ variables, onChange, placeholder = 'Variable name' }) => (
-  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-    {variables?.map((v, i) => (
-      <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        <input
-          value={v}
-          onChange={e => { const newVars = [...variables]; newVars[i] = e.target.value; onChange(newVars); }}
-          placeholder={placeholder}
-          style={{ flex: 1, background: '#0d1520', border: '1px solid #1e2d3d', borderRadius: 6, color: '#cbd5e1', fontSize: 12, fontFamily: 'inherit', padding: '6px 10px', outline: 'none' }}
-        />
-        <button onClick={() => onChange(variables.filter((_, idx) => idx !== i))} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 4 }}>
-          <X size={14} />
-        </button>
-      </div>
-    ))}
-    <button
-      onClick={() => onChange([...(variables || []), ''])}
-      style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: '1px dashed #1e2d3d', borderRadius: 6, color: '#64748b', fontSize: 11, padding: '6px 10px', cursor: 'pointer', width: 'fit-content' }}
-    >
-      <Plus size={12} /> Add Variable
-    </button>
-  </div>
-);
-
-// ─── Empty State ────────────────────────────────────────────────────────────────
-const EmptyState = ({ icon, message, action }) => (
-  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 16px', background: '#0d1520', borderRadius: 8, border: '1px dashed #1e2d3d' }}>
-    <span style={{ fontSize: 24, marginBottom: 8 }}>{icon}</span>
-    <div style={{ color: '#475569', fontSize: 11, textAlign: 'center', marginBottom: action ? 12 : 0 }}>{message}</div>
-    {action}
-  </div>
-);
-
-// ─── Right detail panel ────────────────────────────────────────────────────────
+        {/* Right detail panel */}
         {selected && (() => {
           const node = nodes.find(n => n.id === selected);
           if (!node) return null;
