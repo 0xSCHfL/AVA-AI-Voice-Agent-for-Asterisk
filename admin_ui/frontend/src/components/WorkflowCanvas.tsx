@@ -203,27 +203,25 @@ const VNode = ({ node, selected, onSelect, onDragStart, onOutputMouseDown, onInp
         </div>
       </div>
 
-      {/* Right-side action buttons when selected */}
-      {selected && (
-        <div style={{ position: 'absolute', right: -44, top: '40%', display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <button
-            onMouseDown={e => { e.stopPropagation(); onDelete(node.id); }}
-            style={{ width: 32, height: 32, borderRadius: 8, background: '#0d1520', border: '1px solid #1e2d3d', cursor: 'pointer', color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-            onMouseEnter={e => { e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.borderColor = '#ef444440'; }}
-            onMouseLeave={e => { e.currentTarget.style.color = '#64748b'; e.currentTarget.style.borderColor = '#1e2d3d'; }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-          </button>
-          <button
-            onMouseDown={e => { e.stopPropagation(); onDuplicate(node.id); }}
-            style={{ width: 32, height: 32, borderRadius: 8, background: '#0d1520', border: '1px solid #1e2d3d', cursor: 'pointer', color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-            onMouseEnter={e => { e.currentTarget.style.color = '#94a3b8'; e.currentTarget.style.borderColor = '#2a3d52'; }}
-            onMouseLeave={e => { e.currentTarget.style.color = '#64748b'; e.currentTarget.style.borderColor = '#1e2d3d'; }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-          </button>
-        </div>
-      )}
+      {/* Right-side action buttons — always visible */}
+      <div style={{ position: 'absolute', right: -44, top: '40%', display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <button
+          onMouseDown={e => { e.stopPropagation(); onDelete(node.id); }}
+          style={{ width: 32, height: 32, borderRadius: 8, background: '#0d1520', border: '1px solid #1e2d3d', cursor: 'pointer', color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onMouseEnter={e => { e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.borderColor = '#ef444440'; }}
+          onMouseLeave={e => { e.currentTarget.style.color = '#64748b'; e.currentTarget.style.borderColor = '#1e2d3d'; }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+        </button>
+        <button
+          onMouseDown={e => { e.stopPropagation(); onDuplicate(node.id); }}
+          style={{ width: 32, height: 32, borderRadius: 8, background: '#0d1520', border: '1px solid #1e2d3d', cursor: 'pointer', color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onMouseEnter={e => { e.currentTarget.style.color = '#94a3b8'; e.currentTarget.style.borderColor = '#2a3d52'; }}
+          onMouseLeave={e => { e.currentTarget.style.color = '#64748b'; e.currentTarget.style.borderColor = '#1e2d3d'; }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        </button>
+      </div>
 
       {/* Output port — filled blue circle + green + button */}
       <div
@@ -501,6 +499,7 @@ const WorkflowCanvas = ({ workflowName: initialWorkflowName = 'Untitled Workflow
   const [globalPrompt, setGlobalPrompt] = useState('');
   const [globalVoiceProvider, setGlobalVoiceProvider] = useState('Vapi');
   const [globalVoiceName, setGlobalVoiceName] = useState('Elliot');
+  const [editingEdge, setEditingEdge] = useState(null);
 
   const canvasRef = useRef(null);
   const mark = () => setUnsaved(true);
@@ -842,11 +841,11 @@ const WorkflowCanvas = ({ workflowName: initialWorkflowName = 'Untitled Workflow
               {/* Edges */}
               <svg style={{ position: 'absolute', inset: 0, width: '9999px', height: '9999px', overflow: 'visible', pointerEvents: 'none' }}>
                 <defs>
-                  <marker id="arrw" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto">
-                    <path d="M0,0 L0,6 L7,3 z" fill="#1e3a52" />
+                  <marker id="tri" markerWidth="10" markerHeight="10" refX="5" refY="8" orient="auto">
+                    <polygon points="0,0 10,0 5,9" fill="#10b981" />
                   </marker>
-                  <marker id="arrw-d" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto">
-                    <path d="M0,0 L0,6 L7,3 z" fill="#334155" />
+                  <marker id="tri-draft" markerWidth="10" markerHeight="10" refX="5" refY="8" orient="auto">
+                    <polygon points="0,0 10,0 5,9" fill="#334155" />
                   </marker>
                 </defs>
                 {edges.map(edge => {
@@ -855,20 +854,32 @@ const WorkflowCanvas = ({ workflowName: initialWorkflowName = 'Untitled Workflow
                   const fp = outPos(fn), tp = inPos(tn);
                   const d = bezier(fp.x, fp.y, tp.x, tp.y);
                   const mx = (fp.x + tp.x) / 2, my = (fp.y + tp.y) / 2;
+                  const labelW = Math.max((edge.label?.length || 10) * 7.5 + 24, 90);
                   return (
-                    <g key={edge.id} style={{ pointerEvents: 'all' }}>
-                      <path d={d} fill="none" stroke="transparent" strokeWidth={14} style={{ cursor: 'pointer' }} onClick={() => deleteEdge(edge.id)} />
-                      <path d={d} fill="none" stroke="#1e3a52" strokeWidth={2} strokeDasharray={edge.label ? '6 3' : '0'} markerEnd="url(#arrw)" />
+                    <g key={edge.id}>
+                      <path d={d} fill="none" stroke="transparent" strokeWidth={14} style={{ pointerEvents: 'stroke', cursor: 'pointer' }} onClick={() => setEditingEdge({ id: edge.id, label: edge.label || '' })} />
+                      <path d={d} fill="none" stroke="#10b981" strokeWidth={1.5} strokeDasharray="5 4" opacity={0.7} markerEnd="url(#tri)" style={{ pointerEvents: 'none' }} />
                       {edge.label && (
-                        <g style={{ pointerEvents: 'all' }}>
-                          <rect x={mx - 70} y={my - 14} width={140} height={28} rx={14} fill="#78350f" stroke="#92400e" strokeWidth={1} style={{ cursor: 'pointer' }} onClick={() => deleteEdge(edge.id)} />
-                          <text x={mx} y={my + 5} textAnchor="middle" fill="#fde68a" fontSize={11} fontFamily="inherit" style={{ pointerEvents: 'none' }}>{edge.label}</text>
+                        <g transform={`translate(${mx}, ${my})`}>
+                          <rect x={-labelW / 2} y={-14} width={labelW} height={28} rx={14}
+                            fill="#78350f" stroke="#a16207" strokeWidth={1}
+                            style={{ cursor: 'pointer' }}
+                            onClick={() => setEditingEdge({ id: edge.id, label: edge.label })}
+                          />
+                          <text x={0} y={5} textAnchor="middle" fill="#fde68a" fontSize={11} fontFamily="inherit" style={{ pointerEvents: 'none' }}>
+                            {edge.label}
+                          </text>
+                          <g transform={`translate(${labelW / 2 + 14}, 0)`} style={{ cursor: 'pointer' }} onClick={() => deleteEdge(edge.id)}>
+                            <circle r={10} fill="#1e2d3d" stroke="#334155" strokeWidth={1} />
+                            <line x1="-4" y1="-4" x2="4" y2="4" stroke="#64748b" strokeWidth={1.5} strokeLinecap="round" />
+                            <line x1="4" y1="-4" x2="-4" y2="4" stroke="#64748b" strokeWidth={1.5} strokeLinecap="round" />
+                          </g>
                         </g>
                       )}
                     </g>
                   );
                 })}
-                {draftPath && <path d={draftPath} fill="none" stroke="#334155" strokeWidth={2} strokeDasharray="6 4" markerEnd="url(#arrw-d)" />}
+                {draftPath && <path d={draftPath} fill="none" stroke="#334155" strokeWidth={1.5} strokeDasharray="5 4" markerEnd="url(#tri-draft)" />}
               </svg>
 
               {/* Nodes */}
@@ -890,6 +901,35 @@ const WorkflowCanvas = ({ workflowName: initialWorkflowName = 'Untitled Workflow
             </div>
           </div>
         </div>{/* end canvas area */}
+
+        {/* Condition editor modal */}
+        {editingEdge !== null && (
+          <div style={{ position: 'absolute', inset: 0, background: '#00000060', zIndex: 400, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: 60 }} onClick={() => setEditingEdge(null)}>
+            <div style={{ background: '#0a0f1a', border: '1px solid #1e2d3d', borderRadius: 12, width: 460, boxShadow: '0 24px 64px #000e', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 20px 14px', borderBottom: '1px solid #111a26' }}>
+                <div style={{ width: 28, height: 28, borderRadius: 7, background: '#78350f', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15 }}>
+                  🔀
+                </div>
+                <span style={{ color: '#e2e8f0', fontSize: 15, fontWeight: 700, flex: 1 }}>Condition</span>
+                <button onClick={() => setEditingEdge(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#475569', padding: 4 }}><X size={16}/></button>
+              </div>
+              <div style={{ padding: '16px 20px 20px' }}>
+                <textarea
+                  value={editingEdge.label}
+                  onChange={e => setEditingEdge(prev => ({ ...prev, label: e.target.value }))}
+                  rows={5}
+                  placeholder="e.g. if the user said yes"
+                  autoFocus
+                  style={{ width: '100%', background: '#0d1520', border: '1px solid #1e2d3d', borderRadius: 8, color: '#cbd5e1', fontSize: 13, fontFamily: 'inherit', padding: '12px', outline: 'none', resize: 'vertical', lineHeight: 1.7, boxSizing: 'border-box' }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
+                  <button onClick={() => setEditingEdge(null)} style={{ background: 'none', border: '1px solid #1e2d3d', borderRadius: 7, cursor: 'pointer', color: '#475569', padding: '7px 16px', fontSize: 12, fontFamily: 'inherit' }}>Cancel</button>
+                  <button onClick={() => { setEdges(prev => prev.map(e => e.id === editingEdge.id ? { ...e, label: editingEdge.label } : e)); setEditingEdge(null); mark(); }} style={{ background: '#10b981', border: 'none', borderRadius: 7, cursor: 'pointer', color: '#fff', padding: '7px 16px', fontSize: 12, fontWeight: 600, fontFamily: 'inherit' }}>Save</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Right detail panel */}
         {selected && (() => {
