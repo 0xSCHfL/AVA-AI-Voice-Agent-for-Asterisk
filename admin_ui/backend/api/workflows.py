@@ -205,7 +205,7 @@ async def put_workflow(name: str, req: WorkflowPutRequest) -> WorkflowGetRespons
     content = yaml.dump(override, default_flow_style=False, sort_keys=False)
     config_api._write_local_config(content)
 
-    logger.info("Workflow saved", name=name)
+    logger.info(f"Workflow saved: {name}")
 
     return WorkflowGetResponse(
         name=name,
@@ -241,7 +241,7 @@ async def delete_workflow(name: str) -> Dict[str, str]:
     content = yaml.dump(override, default_flow_style=False, sort_keys=False)
     config_api._write_local_config(content)
 
-    logger.info("Workflow deleted", name=name)
+    logger.info(f"Workflow deleted: {name}")
 
     return {"deleted": name}
 
