@@ -53,7 +53,12 @@ const WorkflowsPage = () => {
       toast.success('Workflow saved!');
       fetchWorkflows();
     } catch (err: any) {
-      toast.error(err.response?.data?.detail || 'Failed to save workflow');
+      const detail = err.response?.data?.detail;
+      if (detail?.errors && Array.isArray(detail.errors)) {
+        toast.error(detail.errors.join(', '));
+      } else {
+        toast.error(detail || 'Failed to save workflow');
+      }
     }
   };
 
