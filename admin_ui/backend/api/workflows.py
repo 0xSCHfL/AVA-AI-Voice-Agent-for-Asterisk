@@ -23,7 +23,7 @@ class WorkflowDefinition(BaseModel):
     version: str = "1.0"
     variables: Dict[str, str] = {}
     steps: List[Dict[str, Any]]
-    _canvas: Optional[Dict[str, Any]] = None
+    canvas: Optional[Dict[str, Any]] = None
 
 
 class WorkflowListResponse(BaseModel):
@@ -38,7 +38,7 @@ class WorkflowGetResponse(BaseModel):
     version: str = "1.0"
     variables: Dict[str, str] = {}
     steps: List[Dict[str, Any]]
-    _canvas: Optional[Dict[str, Any]] = None
+    canvas: Optional[Dict[str, Any]] = None
     # Global AI guidance (Hybrid mode - Option C)
     global_prompt: Optional[str] = None
     global_voice_provider: Optional[str] = None
@@ -54,7 +54,7 @@ class WorkflowPutRequest(BaseModel):
     version: str = "1.0"
     variables: Dict[str, str] = {}
     steps: List[Dict[str, Any]]
-    _canvas: Optional[Dict[str, Any]] = None
+    canvas: Optional[Dict[str, Any]] = None
     # Global AI guidance (Hybrid mode - Option C)
     global_prompt: Optional[str] = None
     global_voice_provider: Optional[str] = None
@@ -87,7 +87,7 @@ def _get_workflow(name: str) -> Optional[Dict[str, Any]]:
     return workflows.get(name)
 
 
-def _normalize_canvas_node(node: Dict[str, Any]) -> Dict[str, Any]:
+def _normalizecanvas_node(node: Dict[str, Any]) -> Dict[str, Any]:
     """
     Normalize a canvas node to VNode format.
 
@@ -148,7 +148,7 @@ def _normalize_canvas_node(node: Dict[str, Any]) -> Dict[str, Any]:
     return normalized
 
 
-def _canvas_step_to_engine_step(node: Dict[str, Any], outgoing_edge_label: Optional[str] = None) -> Dict[str, Any]:
+def canvas_step_to_engine_step(node: Dict[str, Any], outgoing_edge_label: Optional[str] = None) -> Dict[str, Any]:
     """
     Convert a canvas workflow node to an engine WorkflowStep dict.
 
@@ -162,7 +162,7 @@ def _canvas_step_to_engine_step(node: Dict[str, Any], outgoing_edge_label: Optio
     Edge labels (conditions) become branch conditions on the outgoing step.
     """
     # Normalize in case the canvas saved in its own format
-    node = _normalize_canvas_node(node)
+    node = _normalizecanvas_node(node)
 
     step_id = node.get("id", "")
     node_type = node.get("type", "conversation")
@@ -239,7 +239,7 @@ def _build_workflow_steps(nodes: List[Dict[str, Any]], edges: List[Dict[str, Any
     node IDs ("start", random uids) to the normalized node IDs.
     """
     # Normalize all nodes first to get consistent ids
-    normalized_nodes = [_normalize_canvas_node(n) for n in nodes]
+    normalized_nodes = [_normalizecanvas_node(n) for n in nodes]
 
     # Build name→id and original_id→normalized_id maps for edge resolution
     name_to_id: Dict[str, str] = {}
@@ -293,7 +293,7 @@ def _build_workflow_steps(nodes: List[Dict[str, Any]], edges: List[Dict[str, Any
         outgoing = edge_map.get(node_id, {})
         labeled = {eid: lbl for eid, lbl in outgoing.items() if lbl}
 
-        step = _canvas_step_to_engine_step(node)
+        step = canvas_step_to_engine_step(node)
 
         # Attach branch conditions if multiple outgoing edges have labels
         if len(labeled) > 1:
@@ -439,7 +439,7 @@ async def get_workflow(name: str) -> WorkflowGetResponse:
         version=workflow.get("version", "1.0"),
         variables=workflow.get("variables", {}),
         steps=workflow.get("steps", []),
-        _canvas=workflow.get("_canvas"),
+        canvas=workflow.get("canvas"),
         global_prompt=workflow.get("global_prompt"),
         global_voice_provider=workflow.get("global_voice_provider"),
         global_voice_name=workflow.get("global_voice_name"),
@@ -455,7 +455,6 @@ async def put_workflow(name: str, req: WorkflowPutRequest) -> WorkflowGetRespons
     The workflow is written to the local override config (ai-agent.local.yaml)
     so it persists across config updates and is gitignored.
     """
-    logger.info(f"req dict = {req.dict()}")
     # Validate steps
     errors = _validate_workflow_steps(req.steps)
     if errors:
@@ -470,11 +469,11 @@ async def put_workflow(name: str, req: WorkflowPutRequest) -> WorkflowGetRespons
     workflows = merged.get("workflows", {})
 
     # Update the workflow
-    # Convert canvas nodes + edges to engine workflow steps if _canvas is provided
+    # Convert canvas nodes + edges to engine workflow steps if canvas is provided
     engine_steps = req.steps
-    if req._canvas and req._canvas.get("nodes") is not None:
-        nodes = req._canvas["nodes"]
-        edges = req._canvas.get("edges") or []
+    if req.canvas and req.canvas.get("nodes") is not None:
+        nodes = req.canvas["nodes"]
+        edges = req.canvas.get("edges") or []
         engine_steps = _build_workflow_steps(nodes, edges)
 
     workflows[name] = {
@@ -482,7 +481,7 @@ async def put_workflow(name: str, req: WorkflowPutRequest) -> WorkflowGetRespons
         "version": req.version,
         "variables": req.variables,
         "steps": engine_steps,
-        "_canvas": req._canvas,
+        "canvas": req.canvas,
         # Hybrid mode fields
         "global_prompt": req.global_prompt,
         "global_voice_provider": req.global_voice_provider,
@@ -515,7 +514,7 @@ async def put_workflow(name: str, req: WorkflowPutRequest) -> WorkflowGetRespons
         version=req.version,
         variables=req.variables,
         steps=req.steps,
-        _canvas=req._canvas,
+        canvas=req.canvas,
         global_prompt=req.global_prompt,
         global_voice_provider=req.global_voice_provider,
         global_voice_name=req.global_voice_name,

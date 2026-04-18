@@ -39,14 +39,14 @@ const WorkflowsPage = () => {
     }
   };
 
-  const handleSaveCanvas = async ({ steps, _canvas, globalPrompt, globalVoiceProvider, globalVoiceName, context }: { steps: any[]; _canvas: { nodes: any[]; edges: any[] }; globalPrompt?: string; globalVoiceProvider?: string; globalVoiceName?: string; context?: string }, name: string) => {
+  const handleSaveCanvas = async ({ steps, canvas, globalPrompt, globalVoiceProvider, globalVoiceName, context }: { steps: any[]; canvas: { nodes: any[]; edges: any[] }; globalPrompt?: string; globalVoiceProvider?: string; globalVoiceName?: string; context?: string }, name: string) => {
     const wf = {
       name,
       description: workflowsData[name]?.description || '',
       version: workflowsData[name]?.version || '1.0',
       variables: workflowsData[name]?.variables || {},
       steps,
-      _canvas,
+      canvas,
       global_prompt: globalPrompt,
       global_voice_provider: globalVoiceProvider,
       global_voice_name: globalVoiceName,
@@ -81,15 +81,15 @@ const WorkflowsPage = () => {
     return (
       <WorkflowCanvas
         workflowName={canvasWorkflow}
-        initialNodes={wf._canvas?.nodes}
-        initialEdges={wf._canvas?.edges}
+        initialNodes={wf.canvas?.nodes}
+        initialEdges={wf.canvas?.edges}
         initialGlobalPrompt={wf.global_prompt}
         initialGlobalVoiceProvider={wf.global_voice_provider}
         initialGlobalVoiceName={wf.global_voice_name}
         initialContext={wf.context}
         onSave={(data) => {
           const { steps, nodes, edges, globalPrompt, globalVoiceProvider, globalVoiceName, context } = data as { steps: any[]; nodes: any[]; edges: any[]; globalPrompt?: string; globalVoiceProvider?: string; globalVoiceName?: string; context?: string };
-          handleSaveCanvas({ steps, _canvas: { nodes, edges }, globalPrompt, globalVoiceProvider, globalVoiceName, context }, canvasWorkflow);
+          handleSaveCanvas({ steps, canvas: { nodes, edges }, globalPrompt, globalVoiceProvider, globalVoiceName, context }, canvasWorkflow);
         }}
         onClose={() => setCanvasWorkflow(null)}
       />
