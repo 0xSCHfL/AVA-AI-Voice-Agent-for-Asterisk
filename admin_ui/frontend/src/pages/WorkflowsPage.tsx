@@ -23,27 +23,27 @@ const JsonViewer = ({ data }: { data: any }) => {
   const lines = jsonString.split('\n');
 
   const highlightLine = (line: string, i: number) => {
-    // Syntax highlighting
+    // Syntax highlighting using theme colors
     let highlighted = line
-      // Keys - blue
-      .replace(/"([^"]+)":/g, '<span class="text-blue-400">"$1"</span>:')
-      // Strings - green/teal
-      .replace(/: "([^"]+)"/g, ': <span class="text-emerald-400">"$1"</span>')
+      // Keys - cyan/blue
+      .replace(/"([^"]+)":/g, '<span class="text-cyan-500 dark:text-cyan-400">"$1"</span>:')
+      // Strings - green
+      .replace(/: "([^"]+)"/g, ': <span class="text-green-600 dark:text-green-400">"$1"</span>')
       // Numbers - orange
-      .replace(/: (-?\d+\.?\d*)/g, ': <span class="text-orange-400">$1</span>')
-      // Booleans/null - purple
-      .replace(/: (true|false|null)/g, ': <span class="text-purple-400">$1</span>');
+      .replace(/: (-?\d+\.?\d*)/g, ': <span class="text-orange-500 dark:text-orange-400">$1</span>')
+      // Booleans/null - pink/magenta
+      .replace(/: (true|false|null)/g, ': <span class="text-pink-500 dark:text-pink-400">$1</span>');
 
     return (
       <div key={i} className="flex">
-        <span className="text-gray-600 dark:text-gray-500 select-none w-10 text-right pr-3 flex-shrink-0">{i + 1}</span>
-        <span className="font-mono text-sm" dangerouslySetInnerHTML={{ __html: highlighted }} />
+        <span className="text-muted-foreground select-none w-10 text-right pr-3 flex-shrink-0">{i + 1}</span>
+        <span className="font-mono text-sm text-foreground" dangerouslySetInnerHTML={{ __html: highlighted }} />
       </div>
     );
   };
 
   return (
-    <div className="font-mono text-sm overflow-auto">
+    <div className="font-mono text-sm overflow-auto bg-muted/10 rounded-md p-2">
       {lines.map((line, i) => highlightLine(line, i))}
     </div>
   );
@@ -534,43 +534,39 @@ const WorkflowsPage = () => {
         />
       )}
 
-      {/* JSON Drawer / Sidebar */}
+      {/* JSON Modal - Centered */}
       {jsonDrawerOpen && jsonDrawerData && (
-        <div className="fixed inset-0 z-50 flex justify-end">
-          {/* Backdrop */}
-          <div className="absolute inset-0 bg-black/50" onClick={() => setJsonDrawerOpen(false)} />
-          
-          {/* Drawer */}
-          <div className="relative w-full max-w-2xl bg-gray-900 border-l border-gray-800 shadow-2xl flex flex-col h-full animate-in slide-in-from-right duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-card border border-border rounded-lg shadow-lg w-full max-w-3xl flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200">
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-800">
+            <div className="flex items-center justify-between p-4 border-b border-border">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-pink-500/20 flex items-center justify-center">
                   <FileText className="w-5 h-5 text-pink-400" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold text-white">Workflow JSON</h2>
-                  <p className="text-sm text-gray-400">{jsonDrawerName}</p>
+                  <h2 className="text-lg font-semibold tracking-tight text-foreground">Workflow JSON</h2>
+                  <p className="text-sm text-muted-foreground">{jsonDrawerName}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <button
                   onClick={handleDownloadJson}
-                  className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded transition-colors"
+                  className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded transition-colors"
                   title="Download"
                 >
                   <Download className="w-5 h-5" />
                 </button>
                 <button
                   onClick={handleCopyJson}
-                  className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded transition-colors"
+                  className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded transition-colors"
                   title="Copy to Clipboard"
                 >
                   <CopyIcon className="w-5 h-5" />
                 </button>
                 <button
                   onClick={() => setJsonDrawerOpen(false)}
-                  className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded transition-colors"
+                  className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded transition-colors"
                   title="Close"
                 >
                   <X className="w-5 h-5" />
@@ -579,18 +575,18 @@ const WorkflowsPage = () => {
             </div>
 
             {/* Sub-header */}
-            <div className="flex items-center justify-between px-4 py-2 border-b border-gray-800 bg-gray-800/30">
-              <div className="flex items-center gap-2 text-sm text-gray-400">
+            <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-muted/30">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Code className="w-4 h-4" />
                 <span>JSON Format</span>
               </div>
-              <div className="text-sm text-gray-500">
+              <div className="text-sm text-muted-foreground">
                 {getJsonLineCount(jsonDrawerData)} lines
               </div>
             </div>
 
             {/* Code Editor */}
-            <div className="flex-1 overflow-auto p-4 bg-gray-950">
+            <div className="flex-1 overflow-auto p-4 bg-muted/20">
               <JsonViewer data={jsonDrawerData} />
             </div>
           </div>
