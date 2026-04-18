@@ -486,6 +486,8 @@ async def put_workflow(name: str, req: WorkflowPutRequest) -> WorkflowGetRespons
         "global_prompt": req.global_prompt,
         "global_voice_provider": req.global_voice_provider,
         "global_voice_name": req.global_voice_name,
+        # Context binding
+        "context": req.context,
     }
     merged["workflows"] = workflows
 
