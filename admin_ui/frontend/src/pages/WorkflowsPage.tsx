@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import axios from 'axios';
 import { toast } from 'sonner';
-import { Plus, Trash2, Search, Filter, Code, MoreVertical, Loader2, Workflow as WorkflowIcon, ChevronDown, Pencil, Copy, ArrowUpDown, ArrowUp, ArrowDown, Clock, BarChart3 } from 'lucide-react';
+import { Plus, Trash2, Search, Filter, Code, MoreVertical, Loader2, Workflow as WorkflowIcon, ChevronDown, Pencil, Copy as CopyIcon, ArrowUpDown, Clock, BarChart3, X, Download, FileText, BookOpen, Upload } from 'lucide-react';
 import WorkflowCanvas from '../components/WorkflowCanvas';
 
 type SortOption = 'name_asc' | 'name_desc' | 'created_desc' | 'created_asc' | 'updated_desc' | 'updated_asc' | 'steps_desc' | 'steps_asc';
@@ -17,6 +17,38 @@ const SORT_OPTIONS: { value: SortOption; label: string; icon: React.ReactNode }[
   { value: 'steps_asc', label: 'Fewest Steps', icon: <BarChart3 className="w-4 h-4" /> },
 ];
 
+// JSON Syntax highlighting component
+const JsonViewer = ({ data }: { data: any }) => {
+  const jsonString = JSON.stringify(data, null, 2);
+  const lines = jsonString.split('\n');
+
+  const highlightLine = (line: string, i: number) => {
+    // Syntax highlighting
+    let highlighted = line
+      // Keys - blue
+      .replace(/"([^"]+)":/g, '<span class="text-blue-400">"$1"</span>:')
+      // Strings - green/teal
+      .replace(/: "([^"]+)"/g, ': <span class="text-emerald-400">"$1"</span>')
+      // Numbers - orange
+      .replace(/: (-?\d+\.?\d*)/g, ': <span class="text-orange-400">$1</span>')
+      // Booleans/null - purple
+      .replace(/: (true|false|null)/g, ': <span class="text-purple-400">$1</span>');
+
+    return (
+      <div key={i} className="flex">
+        <span className="text-gray-600 dark:text-gray-500 select-none w-10 text-right pr-3 flex-shrink-0">{i + 1}</span>
+        <span className="font-mono text-sm" dangerouslySetInnerHTML={{ __html: highlighted }} />
+      </div>
+    );
+  };
+
+  return (
+    <div className="font-mono text-sm overflow-auto">
+      {lines.map((line, i) => highlightLine(line, i))}
+    </div>
+  );
+};
+
 const WorkflowsPage = () => {
   const [workflowNames, setWorkflowNames] = useState([]);
   const [workflowsData, setWorkflowsData] = useState({});
@@ -26,6 +58,9 @@ const WorkflowsPage = () => {
   const [sortBy, setSortBy] = useState<SortOption>('created_desc');
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
+  const [jsonDrawerOpen, setJsonDrawerOpen] = useState(false);
+  const [jsonDrawerData, setJsonDrawerData] = useState<any>(null);
+  const [jsonDrawerName, setJsonDrawerName] = useState('');
   const sortMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { fetchWorkflows(); }, []);
@@ -159,6 +194,29 @@ const WorkflowsPage = () => {
     }
   };
 
+  const handleViewJson = (name: string, data: any) => {
+    setJsonDrawerName(name);
+    setJsonDrawerData(data);
+    setJsonDrawerOpen(true);
+    setMenuOpen(null);
+  };
+
+  const handleCopyJson = () => {
+    navigator.clipboard.writeText(JSON.stringify(jsonDrawerData, null, 2));
+    toast.success('Copied to clipboard');
+  };
+
+  const handleDownloadJson = () => {
+    const blob = new Blob([JSON.stringify(jsonDrawerData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${jsonDrawerName}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('Downloaded JSON');
+  };
+
   // Filter and sort workflows
   const filteredWorkflows = useMemo(() => {
     let result = workflowNames
@@ -194,7 +252,6 @@ const WorkflowsPage = () => {
     return result;
   }, [workflowNames, workflowsData, searchQuery, sortBy]);
 
-  // Format date
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return '—';
     try {
@@ -211,6 +268,10 @@ const WorkflowsPage = () => {
       return new Date(parseInt(timestamp)).toISOString();
     }
     return new Date().toISOString();
+  };
+
+  const getJsonLineCount = (data: any) => {
+    return JSON.stringify(data, null, 2).split('\n').length;
   };
 
   const currentSortLabel = SORT_OPTIONS.find(o => o.value === sortBy)?.label || 'Sort';
@@ -249,17 +310,30 @@ const WorkflowsPage = () => {
             Visual conversation flows that control what the AI says and does
           </p>
         </div>
-        <button
-          onClick={() => {
-            const name = `workflow_${Date.now()}`;
-            setWorkflowsData((d: Record<string, any>) => ({ ...d, [name]: {} }));
-            setCanvasWorkflow(name);
-          }}
-className="flex items-center gap-2 px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white dark:bg-primary dark:hover:bg-primary/90 dark:text-primary-foreground rounded text-sm font-medium transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          New Workflow
-        </button>
+        <div className="flex items-center gap-3">
+          {/* Upload JSON Button */}
+          <button className="flex items-center gap-2 px-4 py-2 bg-gray-200 dark:bg-gray-800 hover:bg-gray-300 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded text-sm font-medium transition-colors">
+            <Upload className="w-4 h-4" />
+            Upload JSON
+          </button>
+          {/* Docs Button */}
+          <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400 rounded text-sm font-medium transition-colors">
+            <BookOpen className="w-4 h-4" />
+            Docs
+          </button>
+          {/* Create Workflow Button - Primary */}
+          <button
+            onClick={() => {
+              const name = `workflow_${Date.now()}`;
+              setWorkflowsData((d: Record<string, any>) => ({ ...d, [name]: {} }));
+              setCanvasWorkflow(name);
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-sm font-medium transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Create Workflow
+          </button>
+        </div>
       </div>
 
       {/* Search & Filters */}
@@ -320,7 +394,6 @@ className="flex items-center gap-2 px-4 py-2 bg-gray-900 hover:bg-gray-800 text-
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
       ) : filteredWorkflows.length === 0 ? (
-        // Empty State
         <div className="flex flex-col items-center justify-center py-20 text-gray-400 dark:text-gray-500">
           <WorkflowIcon className="w-16 h-16 mb-4 opacity-20" />
           <p className="text-lg font-medium mb-2 text-gray-600 dark:text-gray-400">No workflows found</p>
@@ -334,7 +407,7 @@ className="flex items-center gap-2 px-4 py-2 bg-gray-900 hover:bg-gray-800 text-
                 setWorkflowsData((d: Record<string, any>) => ({ ...d, [name]: {} }));
                 setCanvasWorkflow(name);
               }}
-className="flex items-center gap-2 px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white dark:bg-primary dark:hover:bg-primary/90 dark:text-primary-foreground rounded text-sm font-medium transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-sm font-medium transition-colors"
             >
               <Plus className="w-4 h-4" /> Create Your First Workflow
             </button>
@@ -384,12 +457,18 @@ className="flex items-center gap-2 px-4 py-2 bg-gray-900 hover:bg-gray-800 text-
                   </td>
                   <td className="py-4 px-6 text-right">
                     <div className="flex items-center justify-end gap-2" onClick={e => e.stopPropagation()}>
+                      {/* JSON View Button */}
                       <button
                         className="p-2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition-colors"
                         title="View JSON"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleViewJson(name, data);
+                        }}
                       >
                         <Code className="w-4 h-4" />
                       </button>
+                      {/* More Actions Menu */}
                       <div className="relative">
                         <button
                           className="p-2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition-colors"
@@ -418,10 +497,9 @@ className="flex items-center gap-2 px-4 py-2 bg-gray-900 hover:bg-gray-800 text-
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleDuplicate(name);
-                                setMenuOpen(null);
                               }}
                             >
-                              <Copy className="w-4 h-4" />
+                              <CopyIcon className="w-4 h-4" />
                               Duplicate
                             </button>
                             <div className="border-t border-gray-100 dark:border-gray-700 my-1" />
@@ -448,12 +526,75 @@ className="flex items-center gap-2 px-4 py-2 bg-gray-900 hover:bg-gray-800 text-
         </div>
       )}
 
-      {/* Click outside to close menu */}
-      {menuOpen && (
+      {/* Click outside to close menus */}
+      {(menuOpen || jsonDrawerOpen) && (
         <div
           className="fixed inset-0 z-0"
-          onClick={() => setMenuOpen(null)}
+          onClick={() => { setMenuOpen(null); setJsonDrawerOpen(false); }}
         />
+      )}
+
+      {/* JSON Drawer / Sidebar */}
+      {jsonDrawerOpen && jsonDrawerData && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/50" onClick={() => setJsonDrawerOpen(false)} />
+          
+          {/* Drawer */}
+          <div className="relative w-full max-w-2xl bg-gray-900 border-l border-gray-800 shadow-2xl flex flex-col h-full animate-in slide-in-from-right duration-200">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-800">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-pink-500/20 flex items-center justify-center">
+                  <FileText className="w-5 h-5 text-pink-400" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-white">Workflow JSON</h2>
+                  <p className="text-sm text-gray-400">{jsonDrawerName}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleDownloadJson}
+                  className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded transition-colors"
+                  title="Download"
+                >
+                  <Download className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={handleCopyJson}
+                  className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded transition-colors"
+                  title="Copy to Clipboard"
+                >
+                  <CopyIcon className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={() => setJsonDrawerOpen(false)}
+                  className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded transition-colors"
+                  title="Close"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Sub-header */}
+            <div className="flex items-center justify-between px-4 py-2 border-b border-gray-800 bg-gray-800/30">
+              <div className="flex items-center gap-2 text-sm text-gray-400">
+                <Code className="w-4 h-4" />
+                <span>JSON Format</span>
+              </div>
+              <div className="text-sm text-gray-500">
+                {getJsonLineCount(jsonDrawerData)} lines
+              </div>
+            </div>
+
+            {/* Code Editor */}
+            <div className="flex-1 overflow-auto p-4 bg-gray-950">
+              <JsonViewer data={jsonDrawerData} />
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
