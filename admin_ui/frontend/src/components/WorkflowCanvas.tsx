@@ -957,28 +957,170 @@ const WorkflowCanvas = ({ workflowName: initialWorkflowName = 'Untitled Workflow
           </div>
         )}
 
-        {/* Right detail panel */}
+        // ─── Toggle Switch Component ──────────────────────────────────────────────────
+const Toggle = ({ checked, onChange, label }) => (
+  <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+    <div style={{ width: 36, height: 20, background: checked ? '#10b981' : '#1e2d3d', borderRadius: 10, position: 'relative', transition: 'background 0.2s' }}>
+      <div style={{ position: 'absolute', top: 2, left: checked ? 18 : 2, width: 16, height: 16, background: '#fff', borderRadius: '50%', transition: 'left 0.2s' }} />
+      <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} style={{ position: 'absolute', opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }} />
+    </div>
+    {label && <span style={{ color: '#94a3b8', fontSize: 12 }}>{label}</span>}
+  </label>
+);
+
+// ─── Collapsible Section ────────────────────────────────────────────────────────
+const CollapsibleSection = ({ title, icon, children, defaultOpen = false }) => {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+  return (
+    <div style={{ borderTop: '1px solid #111a26', paddingTop: 14 }}>
+      <div onClick={() => setIsOpen(!isOpen)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', marginBottom: isOpen ? 12 : 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ color: '#10b981', fontSize: 14 }}>{icon}</span>
+          <div>
+            <div style={{ color: '#94a3b8', fontSize: 12, fontWeight: 500 }}>{title}</div>
+          </div>
+        </div>
+        <ChevronDown size={14} color="#334155" style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+      </div>
+      {isOpen && <div>{children}</div>}
+    </div>
+  );
+};
+
+// ─── Select Input ────────────────────────────────────────────────────────────────
+const SelectInput = ({ value, onChange, options, placeholder }) => (
+  <div style={{ position: 'relative' }}>
+    <select
+      value={value || ''}
+      onChange={e => onChange(e.target.value)}
+      style={{ width: '100%', background: '#0d1520', border: '1px solid #1e2d3d', borderRadius: 8, color: value ? '#cbd5e1' : '#64748b', fontSize: 12, fontFamily: 'inherit', padding: '8px 12px', outline: 'none', appearance: 'none', cursor: 'pointer' }}
+    >
+      {placeholder && <option value="">{placeholder}</option>}
+      {options.map(o => <option key={o} value={o}>{o}</option>)}
+    </select>
+    <div style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#475569' }}>
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+  </div>
+);
+
+// ─── Text Input ─────────────────────────────────────────────────────────────────
+const TextInput = ({ value, onChange, placeholder, type = 'text' }) => (
+  <input
+    type={type}
+    value={value || ''}
+    onChange={e => onChange(e.target.value)}
+    placeholder={placeholder}
+    style={{ width: '100%', background: '#0d1520', border: '1px solid #1e2d3d', borderRadius: 8, color: '#cbd5e1', fontSize: 12, fontFamily: 'inherit', padding: '8px 12px', outline: 'none', boxSizing: 'border-box' }}
+  />
+);
+
+// ─── Textarea Input ─────────────────────────────────────────────────────────────
+const TextAreaInput = ({ value, onChange, placeholder, rows = 3 }) => (
+  <textarea
+    value={value || ''}
+    onChange={e => onChange(e.target.value)}
+    placeholder={placeholder}
+    rows={rows}
+    style={{ width: '100%', background: '#0d1520', border: '1px solid #1e2d3d', borderRadius: 8, color: '#cbd5e1', fontSize: 12, fontFamily: 'inherit', padding: '8px 12px', outline: 'none', resize: 'vertical', lineHeight: 1.6, boxSizing: 'border-box' }}
+  />
+);
+
+// ─── Key-Value Pairs ───────────────────────────────────────────────────────────
+const KeyValuePairs = ({ items, onChange, keyPlaceholder = 'Key', valuePlaceholder = 'Value' }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+    {items?.map((item, i) => (
+      <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <input
+          value={item.key || ''}
+          onChange={e => { const newItems = [...items]; newItems[i].key = e.target.value; onChange(newItems); }}
+          placeholder={keyPlaceholder}
+          style={{ flex: 1, background: '#0d1520', border: '1px solid #1e2d3d', borderRadius: 6, color: '#cbd5e1', fontSize: 12, fontFamily: 'inherit', padding: '6px 10px', outline: 'none' }}
+        />
+        <input
+          value={item.value || ''}
+          onChange={e => { const newItems = [...items]; newItems[i].value = e.target.value; onChange(newItems); }}
+          placeholder={valuePlaceholder}
+          style={{ flex: 1, background: '#0d1520', border: '1px solid #1e2d3d', borderRadius: 6, color: '#cbd5e1', fontSize: 12, fontFamily: 'inherit', padding: '6px 10px', outline: 'none' }}
+        />
+        <button onClick={() => onChange(items.filter((_, idx) => idx !== i))} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 4 }}>
+          <X size={14} />
+        </button>
+      </div>
+    ))}
+    <button
+      onClick={() => onChange([...(items || []), { key: '', value: '' }])}
+      style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: '1px dashed #1e2d3d', borderRadius: 6, color: '#64748b', fontSize: 11, padding: '6px 10px', cursor: 'pointer', width: 'fit-content' }}
+    >
+      <Plus size={12} /> Add
+    </button>
+  </div>
+);
+
+// ─── Variable List ─────────────────────────────────────────────────────────────
+const VariableList = ({ variables, onChange, placeholder = 'Variable name' }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+    {variables?.map((v, i) => (
+      <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <input
+          value={v}
+          onChange={e => { const newVars = [...variables]; newVars[i] = e.target.value; onChange(newVars); }}
+          placeholder={placeholder}
+          style={{ flex: 1, background: '#0d1520', border: '1px solid #1e2d3d', borderRadius: 6, color: '#cbd5e1', fontSize: 12, fontFamily: 'inherit', padding: '6px 10px', outline: 'none' }}
+        />
+        <button onClick={() => onChange(variables.filter((_, idx) => idx !== i))} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 4 }}>
+          <X size={14} />
+        </button>
+      </div>
+    ))}
+    <button
+      onClick={() => onChange([...(variables || []), ''])}
+      style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: '1px dashed #1e2d3d', borderRadius: 6, color: '#64748b', fontSize: 11, padding: '6px 10px', cursor: 'pointer', width: 'fit-content' }}
+    >
+      <Plus size={12} /> Add Variable
+    </button>
+  </div>
+);
+
+// ─── Empty State ────────────────────────────────────────────────────────────────
+const EmptyState = ({ icon, message, action }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 16px', background: '#0d1520', borderRadius: 8, border: '1px dashed #1e2d3d' }}>
+    <span style={{ fontSize: 24, marginBottom: 8 }}>{icon}</span>
+    <div style={{ color: '#475569', fontSize: 11, textAlign: 'center', marginBottom: action ? 12 : 0 }}>{message}</div>
+    {action}
+  </div>
+);
+
+// ─── Right detail panel ────────────────────────────────────────────────────────
         {selected && (() => {
           const node = nodes.find(n => n.id === selected);
           if (!node) return null;
           const def = NODE_DEFS[node.type] || NODE_DEFS.conversation;
           return (
             <div style={{
-              width: 320, background: '#0a0f1a', borderLeft: '1px solid #111a26',
+              width: 360, background: '#0a0f1a', borderLeft: '1px solid #111a26',
               display: 'flex', flexDirection: 'column', flexShrink: 0,
               overflowY: 'auto', zIndex: 50,
               animation: 'slideIn 0.15s ease',
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '16px 16px 14px', borderBottom: '1px solid #111a26' }}>
+              {/* Header with node label + edit */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px', borderBottom: '1px solid #111a26' }}>
                 <div style={{ width: 28, height: 28, borderRadius: 7, background: def.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0 }}>
                   {def.icon}
                 </div>
-                <span style={{ color: '#e2e8f0', fontSize: 14, fontWeight: 600, flex: 1 }}>{NODE_DEFS[node.type]?.label || 'Node'}</span>
-                <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#475569', padding: 4 }}><X size={15}/></button>
+                <span style={{ color: '#e2e8f0', fontSize: 14, fontWeight: 600, flex: 1 }}>{node.label}</span>
+                <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#475569', padding: 2 }}
+                  onMouseEnter={e => e.currentTarget.style.color = '#64748b'}
+                  onMouseLeave={e => e.currentTarget.style.color = '#475569'}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                </button>
               </div>
 
-              <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-                <div>
+              <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+
+                {/* Node Type (always visible) */}
+                <div style={{ marginBottom: 8 }}>
                   <div style={{ fontSize: 11, color: '#475569', marginBottom: 6, fontWeight: 500 }}>Node Type</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#0d1520', border: '1px solid #1e2d3d', borderRadius: 8, padding: '8px 12px' }}>
                     <div style={{ width: 20, height: 20, borderRadius: 5, background: def.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>{def.icon}</div>
@@ -986,50 +1128,470 @@ const WorkflowCanvas = ({ workflowName: initialWorkflowName = 'Untitled Workflow
                   </div>
                 </div>
 
+                {/* CONVERSATION NODE */}
                 {node.type === 'conversation' && (
                   <>
-                    <div>
-                      <div style={{ fontSize: 11, color: '#475569', marginBottom: 4, fontWeight: 500 }}>First Message</div>
-                      <div style={{ fontSize: 10, color: '#334155', marginBottom: 6 }}>Say something… Use {'{{variableName}}'} for dynamic content</div>
-                      <textarea
-                        value={node.data?.firstMessage || ''}
-                        onChange={e => updateNode(node.id, { data: { ...node.data, firstMessage: e.target.value } })}
-                        rows={3}
+                    {/* First Message */}
+                    <CollapsibleSection title="First Message" icon="💬" defaultOpen={true}>
+                      <TextAreaInput
+                        value={node.data?.firstMessage}
+                        onChange={v => updateNode(node.id, { data: { ...node.data, firstMessage: v } })}
                         placeholder="Say something… Use {{variableName}} for dynamic content"
-                        style={{ width: '100%', background: '#0d1520', border: '1px solid #1e2d3d', borderRadius: 8, color: '#cbd5e1', fontSize: 12, fontFamily: 'inherit', padding: '8px 10px', outline: 'none', resize: 'vertical', lineHeight: 1.6, boxSizing: 'border-box' }}
+                        rows={3}
                       />
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 11, color: '#475569', marginBottom: 4, fontWeight: 500 }}>Prompt</div>
-                      <div style={{ fontSize: 10, color: '#334155', marginBottom: 6 }}>Enter the prompt for this conversation node</div>
-                      <textarea
-                        value={node.data?.prompt || ''}
-                        onChange={e => updateNode(node.id, { data: { ...node.data, prompt: e.target.value } })}
+                    </CollapsibleSection>
+
+                    {/* Prompt */}
+                    <CollapsibleSection title="Prompt" icon="📝">
+                      <TextAreaInput
+                        value={node.data?.prompt}
+                        onChange={v => updateNode(node.id, { data: { ...node.data, prompt: v } })}
+                        placeholder="Enter a prompt for the conversation..."
                         rows={6}
-                        placeholder={`Enter a prompt for the conversation. Use {{variableName}} for dynamic content`}
-                        style={{ width: '100%', background: '#0d1520', border: '1px solid #1e2d3d', borderRadius: 8, color: '#cbd5e1', fontSize: 12, fontFamily: 'inherit', padding: '8px 10px', outline: 'none', resize: 'vertical', lineHeight: 1.6, boxSizing: 'border-box' }}
                       />
-                    </div>
+                    </CollapsibleSection>
+
+                    {/* Global Node */}
+                    <CollapsibleSection title="Global Node" icon="🌐">
+                      <Toggle
+                        checked={node.data?.isGlobal || false}
+                        onChange={v => updateNode(node.id, { data: { ...node.data, isGlobal: v } })}
+                        label="Make this node available from any point"
+                      />
+                    </CollapsibleSection>
+
+                    {/* Tools */}
+                    <CollapsibleSection title="Tools" icon="🔧">
+                      <SelectInput
+                        value={node.data?.selectedTool || ''}
+                        onChange={v => updateNode(node.id, { data: { ...node.data, selectedTool: v } })}
+                        options={['check_availability', 'book_appointment', 'transfer_to_agent', 'send_email', 'create_ticket']}
+                        placeholder="Select a tool"
+                      />
+                    </CollapsibleSection>
+
+                    {/* Model Settings */}
+                    <CollapsibleSection title="Model Settings" icon="🤖">
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        <div>
+                          <div style={{ fontSize: 10, color: '#475569', marginBottom: 4 }}>Provider</div>
+                          <SelectInput
+                            value={node.data?.modelProvider || 'OpenAI'}
+                            onChange={v => updateNode(node.id, { data: { ...node.data, modelProvider: v, model: '' } })}
+                            options={['OpenAI', 'Anthropic', 'Google', 'Groq', 'Azure', 'Ollama']}
+                          />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 10, color: '#475569', marginBottom: 4 }}>Model</div>
+                          <SelectInput
+                            value={node.data?.model || 'gpt-4.1'}
+                            onChange={v => updateNode(node.id, { data: { ...node.data, model: v } })}
+                            options={node.data?.modelProvider === 'OpenAI' ? ['gpt-4.1', 'gpt-4o', 'gpt-4o-mini', 'gpt-3.5-turbo'] : node.data?.modelProvider === 'Anthropic' ? ['claude-3-5-sonnet', 'claude-3-opus', 'claude-3-haiku'] : ['default']}
+                          />
+                        </div>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 10, color: '#475569', marginBottom: 4 }}>Temperature</div>
+                            <TextInput
+                              value={node.data?.temperature || '0.3'}
+                              onChange={v => updateNode(node.id, { data: { ...node.data, temperature: v } })}
+                              placeholder="0.3"
+                            />
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 10, color: '#475569', marginBottom: 4 }}>Max Tokens</div>
+                            <TextInput
+                              value={node.data?.maxTokens || '250'}
+                              onChange={v => updateNode(node.id, { data: { ...node.data, maxTokens: v } })}
+                              placeholder="250"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </CollapsibleSection>
+
+                    {/* Voice Settings */}
+                    <CollapsibleSection title="Voice Settings" icon="🎤">
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        <div>
+                          <div style={{ fontSize: 10, color: '#475569', marginBottom: 4 }}>Voice Provider</div>
+                          <SelectInput
+                            value={node.data?.voiceProvider || 'OpenAI'}
+                            onChange={v => updateNode(node.id, { data: { ...node.data, voiceProvider: v, voice: '' } })}
+                            options={['OpenAI', 'ElevenLabs', 'Azure', 'Google', 'Deepgram']}
+                          />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 10, color: '#475569', marginBottom: 4 }}>Voice</div>
+                          <SelectInput
+                            value={node.data?.voice || 'alloy'}
+                            onChange={v => updateNode(node.id, { data: { ...node.data, voice: v } })}
+                            options={node.data?.voiceProvider === 'ElevenLabs' ? ['Rachel', 'Josh', 'Arnold', 'Bella'] : node.data?.voiceProvider === 'Azure' ? ['Aria', 'Jenny', 'Guy'] : ['alloy', 'echo', 'fable', 'onyx', 'shimmer']}
+                          />
+                        </div>
+                      </div>
+                    </CollapsibleSection>
+
+                    {/* Transcriber Settings */}
+                    <CollapsibleSection title="Transcriber Settings" icon="🎧">
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        <div>
+                          <div style={{ fontSize: 10, color: '#475569', marginBottom: 4 }}>Language</div>
+                          <SelectInput
+                            value={node.data?.language || 'en-US'}
+                            onChange={v => updateNode(node.id, { data: { ...node.data, language: v } })}
+                            options={['en-US', 'en-GB', 'es-ES', 'fr-FR', 'de-DE', 'it-IT', 'pt-BR', 'zh-CN', 'ja-JP']}
+                          />
+                        </div>
+                        <Toggle
+                          checked={node.data?.smartFormat || false}
+                          onChange={v => updateNode(node.id, { data: { ...node.data, smartFormat: v } })}
+                          label="Smart Format"
+                        />
+                        <Toggle
+                          checked={node.data?.numerals || false}
+                          onChange={v => updateNode(node.id, { data: { ...node.data, numerals: v } })}
+                          label="Numerals"
+                        />
+                        <div>
+                          <div style={{ fontSize: 10, color: '#475569', marginBottom: 4 }}>Endpointing (ms)</div>
+                          <TextInput
+                            value={node.data?.endpointing || '400'}
+                            onChange={v => updateNode(node.id, { data: { ...node.data, endpointing: v } })}
+                            placeholder="400"
+                          />
+                        </div>
+                        <Toggle
+                          checked={node.data?.optOutMIP || false}
+                          onChange={v => updateNode(node.id, { data: { ...node.data, optOutMIP: v } })}
+                          label="Opt out of MIP"
+                        />
+                        <div>
+                          <div style={{ fontSize: 10, color: '#475569', marginBottom: 4 }}>Key Terms</div>
+                          <TextAreaInput
+                            value={node.data?.keyTerms}
+                            onChange={v => updateNode(node.id, { data: { ...node.data, keyTerms: v } })}
+                            placeholder="Enter key terms separated by commas..."
+                            rows={2}
+                          />
+                        </div>
+                      </div>
+                    </CollapsibleSection>
+
+                    {/* Extract Variables */}
+                    <CollapsibleSection title="Extract Variables" icon="📊">
+                      <VariableList
+                        variables={node.data?.extractVariables || []}
+                        onChange={v => updateNode(node.id, { data: { ...node.data, extractVariables: v } })}
+                        placeholder="Variable name"
+                      />
+                    </CollapsibleSection>
                   </>
                 )}
 
-                {[
-                  { label: 'Global Node', sub: 'Make this node available from any point in the conversation' },
-                  { label: 'Tools', sub: 'Attach tools that can be used during the conversation' },
-                  { label: 'Model Settings', sub: 'Configure the LLM model' },
-                  { label: 'Voice Settings', sub: 'Configure the text-to-speech engine' },
-                  { label: 'Transcriber Settings', sub: 'Configure the speech-to-text engine' },
-                ].map((sec, i) => (
-                  <div key={i} style={{ borderTop: '1px solid #111a26', paddingTop: 14 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}>
-                      <div>
-                        <div style={{ color: '#94a3b8', fontSize: 12, fontWeight: 500 }}>{sec.label}</div>
-                        <div style={{ color: '#334155', fontSize: 10, marginTop: 2 }}>{sec.sub}</div>
+                {/* API REQUEST NODE */}
+                {node.type === 'api_request' && (
+                  <>
+                    {/* Base Configuration */}
+                    <CollapsibleSection title="Base Configuration" icon="⚙️" defaultOpen={true}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        <div>
+                          <div style={{ fontSize: 10, color: '#475569', marginBottom: 4 }}>Tool Name</div>
+                          <TextInput
+                            value={node.data?.toolName}
+                            onChange={v => updateNode(node.id, { data: { ...node.data, toolName: v } })}
+                            placeholder="e.g. check_availability"
+                          />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 10, color: '#475569', marginBottom: 4 }}>Description</div>
+                          <TextAreaInput
+                            value={node.data?.description}
+                            onChange={v => updateNode(node.id, { data: { ...node.data, description: v } })}
+                            placeholder="What does this tool do?"
+                            rows={2}
+                          />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 10, color: '#475569', marginBottom: 4 }}>Request URL *</div>
+                          <TextInput
+                            value={node.data?.url}
+                            onChange={v => updateNode(node.id, { data: { ...node.data, url: v } })}
+                            placeholder="https://api.example.com/endpoint"
+                          />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 10, color: '#475569', marginBottom: 4 }}>HTTP Method</div>
+                          <SelectInput
+                            value={node.data?.httpMethod || 'GET'}
+                            onChange={v => updateNode(node.id, { data: { ...node.data, httpMethod: v } })}
+                            options={['GET', 'POST', 'PUT', 'DELETE', 'PATCH']}
+                          />
+                        </div>
                       </div>
-                      <ChevronDown size={14} color="#334155" />
-                    </div>
-                  </div>
-                ))}
+                    </CollapsibleSection>
+
+                    {/* Authorization */}
+                    <CollapsibleSection title="Authorization" icon="🔐">
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        <SelectInput
+                          value={node.data?.authType || 'None'}
+                          onChange={v => updateNode(node.id, { data: { ...node.data, authType: v } })}
+                          options={['None', 'Bearer', 'Basic', 'API Key']}
+                        />
+                        {node.data?.authType === 'Bearer' && (
+                          <TextInput
+                            value={node.data?.bearerToken}
+                            onChange={v => updateNode(node.id, { data: { ...node.data, bearerToken: v } })}
+                            placeholder="Bearer token"
+                          />
+                        )}
+                        {node.data?.authType === 'Basic' && (
+                          <>
+                            <TextInput
+                              value={node.data?.basicUsername}
+                              onChange={v => updateNode(node.id, { data: { ...node.data, basicUsername: v } })}
+                              placeholder="Username"
+                            />
+                            <TextInput
+                              value={node.data?.basicPassword}
+                              onChange={v => updateNode(node.id, { data: { ...node.data, basicPassword: v } })}
+                              placeholder="Password"
+                            />
+                          </>
+                        )}
+                        {node.data?.authType === 'API Key' && (
+                          <>
+                            <TextInput
+                              value={node.data?.apiKeyHeader}
+                              onChange={v => updateNode(node.id, { data: { ...node.data, apiKeyHeader: v } })}
+                              placeholder="Header name (default: X-API-Key)"
+                            />
+                            <TextInput
+                              value={node.data?.apiKeyValue}
+                              onChange={v => updateNode(node.id, { data: { ...node.data, apiKeyValue: v } })}
+                              placeholder="API key value"
+                            />
+                          </>
+                        )}
+                      </div>
+                    </CollapsibleSection>
+
+                    {/* Request Headers */}
+                    <CollapsibleSection title="Request Headers" icon="📋">
+                      <KeyValuePairs
+                        items={node.data?.headers || []}
+                        onChange={v => updateNode(node.id, { data: { ...node.data, headers: v } })}
+                        keyPlaceholder="Header name"
+                        valuePlaceholder="Value"
+                      />
+                    </CollapsibleSection>
+
+                    {/* Request Body */}
+                    <CollapsibleSection title="Request Body" icon="📦">
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        <KeyValuePairs
+                          items={node.data?.bodySchema || []}
+                          onChange={v => updateNode(node.id, { data: { ...node.data, bodySchema: v } })}
+                          keyPlaceholder="Property name"
+                          valuePlaceholder="Type"
+                        />
+                        <Toggle
+                          checked={node.data?.lockSchema || false}
+                          onChange={v => updateNode(node.id, { data: { ...node.data, lockSchema: v } })}
+                          label="Lock schema"
+                        />
+                      </div>
+                    </CollapsibleSection>
+
+                    {/* Static Body Fields */}
+                    <CollapsibleSection title="Static Body Fields" icon="📝">
+                      <KeyValuePairs
+                        items={node.data?.staticBodyFields || []}
+                        onChange={v => updateNode(node.id, { data: { ...node.data, staticBodyFields: v } })}
+                        keyPlaceholder="Field name"
+                        valuePlaceholder="Value (use {{variable}})"
+                      />
+                    </CollapsibleSection>
+
+                    {/* Response Body */}
+                    <CollapsibleSection title="Response Body" icon="📥">
+                      <div style={{ fontSize: 11, color: '#475569', marginBottom: 8 }}>Variable/Type/Required/Actions</div>
+                      <KeyValuePairs
+                        items={node.data?.responseMapping || []}
+                        onChange={v => updateNode(node.id, { data: { ...node.data, responseMapping: v } })}
+                        keyPlaceholder="Variable"
+                        valuePlaceholder="Type"
+                      />
+                    </CollapsibleSection>
+
+                    {/* Aliases */}
+                    <CollapsibleSection title="Aliases" icon="🔗">
+                      <KeyValuePairs
+                        items={node.data?.aliases || []}
+                        onChange={v => updateNode(node.id, { data: { ...node.data, aliases: v } })}
+                        keyPlaceholder="From"
+                        valuePlaceholder="To"
+                      />
+                    </CollapsibleSection>
+
+                    {/* Messages Configuration */}
+                    <CollapsibleSection title="Messages Configuration" icon="💭">
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        <div>
+                          <div style={{ fontSize: 10, color: '#475569', marginBottom: 4 }}>Processing Message</div>
+                          <TextInput
+                            value={node.data?.processingMessage}
+                            onChange={v => updateNode(node.id, { data: { ...node.data, processingMessage: v } })}
+                            placeholder="Let me check that for you..."
+                          />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 10, color: '#475569', marginBottom: 4 }}>Success Message</div>
+                          <TextInput
+                            value={node.data?.successMessage}
+                            onChange={v => updateNode(node.id, { data: { ...node.data, successMessage: v } })}
+                            placeholder="Here's what I found..."
+                          />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 10, color: '#475569', marginBottom: 4 }}>Error Message</div>
+                          <TextInput
+                            value={node.data?.errorMessage}
+                            onChange={v => updateNode(node.id, { data: { ...node.data, errorMessage: v } })}
+                            placeholder="Sorry, something went wrong..."
+                          />
+                        </div>
+                      </div>
+                    </CollapsibleSection>
+                  </>
+                )}
+
+                {/* TRANSFER CALL NODE */}
+                {node.type === 'transfer_call' && (
+                  <>
+                    <CollapsibleSection title="Destinations" icon="📞" defaultOpen={true}>
+                      {node.data?.destinations?.length > 0 ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          {node.data.destinations.map((dest, i) => (
+                            <div key={i} style={{ background: '#0d1520', border: '1px solid #1e2d3d', borderRadius: 8, padding: 10 }}>
+                              <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                                <input
+                                  value={dest.number}
+                                  onChange={e => { const newDests = [...(node.data.destinations || [])]; newDests[i].number = e.target.value; updateNode(node.id, { data: { ...node.data, destinations: newDests } }); }}
+                                  placeholder="+1 (555) 000-0000"
+                                  style={{ flex: 1, background: '#080d14', border: '1px solid #1e2d3d', borderRadius: 6, color: '#cbd5e1', fontSize: 12, padding: '6px 8px' }}
+                                />
+                                <input
+                                  value={dest.label}
+                                  onChange={e => { const newDests = [...(node.data.destinations || [])]; newDests[i].label = e.target.value; updateNode(node.id, { data: { ...node.data, destinations: newDests } }); }}
+                                  placeholder="Label"
+                                  style={{ width: 80, background: '#080d14', border: '1px solid #1e2d3d', borderRadius: 6, color: '#cbd5e1', fontSize: 12, padding: '6px 8px' }}
+                                />
+                                <button onClick={() => updateNode(node.id, { data: { ...node.data, destinations: node.data.destinations.filter((_, idx) => idx !== i) } })} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}>
+                                  <X size={14} />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <EmptyState icon="📞" message="No destinations configured" />
+                      )}
+                      <button
+                        onClick={() => updateNode(node.id, { data: { ...node.data, destinations: [...(node.data.destinations || []), { number: '', label: '' }] } })}
+                        style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: '1px dashed #1e2d3d', borderRadius: 6, color: '#64748b', fontSize: 11, padding: '8px 12px', cursor: 'pointer', width: '100%', marginTop: 8, justifyContent: 'center' }}
+                      >
+                        <Plus size={12} /> Add Destination
+                      </button>
+                    </CollapsibleSection>
+
+                    {/* Message */}
+                    <CollapsibleSection title="Message" icon="💬">
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                          <input type="radio" name="msgType" checked={node.data?.messageType === 'Default'} onChange={() => updateNode(node.id, { data: { ...node.data, messageType: 'Default' } })} style={{ accentColor: '#10b981' }} />
+                          <span style={{ color: '#94a3b8', fontSize: 12 }}>Default</span>
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                          <input type="radio" name="msgType" checked={node.data?.messageType === 'None'} onChange={() => updateNode(node.id, { data: { ...node.data, messageType: 'None' } })} style={{ accentColor: '#10b981' }} />
+                          <span style={{ color: '#94a3b8', fontSize: 12 }}>None</span>
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                          <input type="radio" name="msgType" checked={node.data?.messageType === 'Custom'} onChange={() => updateNode(node.id, { data: { ...node.data, messageType: 'Custom' } })} style={{ accentColor: '#10b981' }} />
+                          <span style={{ color: '#94a3b8', fontSize: 12 }}>Custom</span>
+                        </label>
+                        {node.data?.messageType === 'Custom' && (
+                          <TextAreaInput
+                            value={node.data?.customMessage}
+                            onChange={v => updateNode(node.id, { data: { ...node.data, customMessage: v } })}
+                            placeholder="Enter custom message..."
+                            rows={3}
+                          />
+                        )}
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginTop: 8 }}>
+                          <input type="checkbox" checked={node.data?.waitForMessage || false} onChange={e => updateNode(node.id, { data: { ...node.data, waitForMessage: e.target.checked } })} style={{ accentColor: '#10b981' }} />
+                          <span style={{ color: '#94a3b8', fontSize: 12 }}>Wait for message before triggering</span>
+                        </label>
+                      </div>
+                    </CollapsibleSection>
+
+                    {/* Conditions */}
+                    <CollapsibleSection title="Conditions" icon="🔀">
+                      <div style={{ color: '#475569', fontSize: 11, textAlign: 'center', padding: 16 }}>
+                        No conditions configured
+                      </div>
+                      <button
+                        onClick={() => updateNode(node.id, { data: { ...node.data, conditions: [...(node.data.conditions || []), { field: '', operator: 'equals', value: '' }] } })}
+                        style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: '1px dashed #1e2d3d', borderRadius: 6, color: '#64748b', fontSize: 11, padding: '8px 12px', cursor: 'pointer', width: '100%', justifyContent: 'center' }}
+                      >
+                        <Plus size={12} /> Add Condition
+                      </button>
+                    </CollapsibleSection>
+                  </>
+                )}
+
+                {/* END CALL NODE */}
+                {node.type === 'end_call' && (
+                  <>
+                    <CollapsibleSection title="Message" icon="💬" defaultOpen={true}>
+                      <TextAreaInput
+                        value={node.data?.farewell}
+                        onChange={v => updateNode(node.id, { data: { ...node.data, farewell: v } })}
+                        placeholder="Goodbye! Have a great day."
+                        rows={3}
+                      />
+                    </CollapsibleSection>
+                  </>
+                )}
+
+                {/* TOOL NODE */}
+                {node.type === 'tool' && (
+                  <>
+                    <CollapsibleSection title="Tool Configuration" icon="🔧" defaultOpen={true}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        <div>
+                          <div style={{ fontSize: 10, color: '#475569', marginBottom: 4 }}>Tool Name</div>
+                          <TextInput
+                            value={node.data?.toolName}
+                            onChange={v => updateNode(node.id, { data: { ...node.data, toolName: v } })}
+                            placeholder="e.g. check_availability"
+                          />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 10, color: '#475569', marginBottom: 4 }}>Description</div>
+                          <TextAreaInput
+                            value={node.data?.description}
+                            onChange={v => updateNode(node.id, { data: { ...node.data, description: v } })}
+                            placeholder="What does this tool do?"
+                            rows={2}
+                          />
+                        </div>
+                      </div>
+                    </CollapsibleSection>
+                  </>
+                )}
+
               </div>
             </div>
           );
