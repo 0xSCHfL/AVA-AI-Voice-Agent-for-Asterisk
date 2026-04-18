@@ -1,21 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { toast } from 'sonner';
-import { Plus, Trash2, Settings, ArrowRight, ChevronRight, Loader2, Workflow as WorkflowIcon } from 'lucide-react';
+import { Plus, Trash2, Search, Filter, Code, MoreVertical, Loader2, Workflow as WorkflowIcon } from 'lucide-react';
 import WorkflowCanvas from '../components/WorkflowCanvas';
-
-const NODE_TYPE_COLORS = {
-  prompt:  'bg-blue-500/20 text-blue-400',
-  collect: 'bg-purple-500/20 text-purple-400',
-  action:  'bg-amber-500/20 text-amber-400',
-  branch:  'bg-green-500/20 text-green-400',
-};
 
 const WorkflowsPage = () => {
   const [workflowNames, setWorkflowNames] = useState([]);
   const [workflowsData, setWorkflowsData] = useState({});
   const [loading, setLoading] = useState(true);
   const [canvasWorkflow, setCanvasWorkflow] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState<'recent' | 'name' | 'updated'>('recent');
+  const [menuOpen, setMenuOpen] = useState<string | null>(null);
 
   useEffect(() => { fetchWorkflows(); }, []);
 
@@ -76,12 +72,10 @@ const WorkflowsPage = () => {
       return;
     }
     try {
-      // Save as new workflow
       await axios.put(`/api/workflows/${newName}`, {
         name: newName,
         ...data,
       });
-      // Delete old workflow
       await axios.delete(`/api/workflows/${oldName}`);
       toast.success(`Workflow renamed to ${newName}`);
       setCanvasWorkflow(newName);
@@ -101,6 +95,47 @@ const WorkflowsPage = () => {
     }
   };
 
+  // Filter and sort workflows
+  const filteredWorkflows = useMemo(() => {
+    let result = workflowNames
+      .map(name => ({ name, data: workflowsData[name] }))
+      .filter(({ name }) => name.toLowerCase().includes(searchQuery.toLowerCase()));
+
+    switch (sortBy) {
+      case 'name':
+        result.sort((a, b) => a.name.localeCompare(b.name));
+        break;
+      case 'updated':
+        result.sort((a, b) => (b.data?.updated_at || '').localeCompare(a.data?.updated_at || ''));
+        break;
+      case 'recent':
+      default:
+        result.sort((a, b) => (b.data?.created_at || '').localeCompare(a.data?.created_at || ''));
+    }
+    return result;
+  }, [workflowNames, workflowsData, searchQuery, sortBy]);
+
+  // Format date
+  const formatDate = (dateStr?: string) => {
+    if (!dateStr) return '—';
+    try {
+      const date = new Date(dateStr);
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    } catch {
+      return '—';
+    }
+  };
+
+  // Get current date for created/updated (using workflow name timestamp for demo)
+  const getWorkflowDate = (name: string) => {
+    // Extract timestamp from workflow name if it's a timestamp-based name
+    const timestamp = name.replace('workflow_', '');
+    if (/^\d+$/.test(timestamp)) {
+      return new Date(parseInt(timestamp)).toISOString();
+    }
+    return new Date().toISOString();
+  };
+
   if (canvasWorkflow !== null) {
     const wf = workflowsData[canvasWorkflow] || {};
     return (
@@ -114,7 +149,6 @@ const WorkflowsPage = () => {
         initialContext={wf.context}
         onSave={(data) => {
           const { steps, nodes, edges, globalPrompt, globalVoiceProvider, globalVoiceName, context, name: newName } = data as { steps: any[]; nodes: any[]; edges: any[]; globalPrompt?: string; globalVoiceProvider?: string; globalVoiceName?: string; context?: string; name?: string };
-          // If name changed, need to handle rename
           if (newName && newName !== canvasWorkflow) {
             handleRenameWorkflow(canvasWorkflow, newName, { steps, canvas: { nodes, edges }, globalPrompt, globalVoiceProvider, globalVoiceName, context });
           } else {
@@ -127,8 +161,9 @@ const WorkflowsPage = () => {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="p-6">
+      {/* Header / Utility Bar */}
+      <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-white">Workflows</h1>
           <p className="text-sm text-gray-400 mt-1">
@@ -148,86 +183,161 @@ const WorkflowsPage = () => {
         </button>
       </div>
 
+      {/* Search & Filters */}
+      <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-800">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+          <input
+            type="text"
+            placeholder="Search workflows..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10 pr-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-primary w-64"
+          />
+        </div>
+        <div className="flex items-center gap-3">
+          <button className="flex items-center gap-2 px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-sm text-gray-400 hover:text-white hover:border-gray-600 transition-colors">
+            <Filter className="w-4 h-4" />
+            Filter
+          </button>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as any)}
+            className="px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-sm text-gray-400 focus:outline-none focus:border-primary cursor-pointer"
+          >
+            <option value="recent">Recently Created</option>
+            <option value="name">Name A-Z</option>
+            <option value="updated">Recently Updated</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Loading State */}
       {loading ? (
         <div className="flex items-center justify-center py-20">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
-      ) : workflowNames.length === 0 ? (
+      ) : filteredWorkflows.length === 0 ? (
+        // Empty State
         <div className="flex flex-col items-center justify-center py-20 text-gray-400">
           <WorkflowIcon className="w-16 h-16 mb-4 opacity-20" />
-          <p className="text-lg font-medium mb-2">No workflows yet</p>
+          <p className="text-lg font-medium mb-2">No workflows found</p>
           <p className="text-sm text-gray-500 mb-6">
-            Build visual conversation flows with a node-based canvas.
+            {searchQuery ? 'Try adjusting your search query' : 'Build visual conversation flows with a node-based canvas.'}
           </p>
-          <button
-            onClick={() => {
-              const name = `workflow_${Date.now()}`;
-              setWorkflowsData((d: Record<string, any>) => ({ ...d, [name]: {} }));
-              setCanvasWorkflow(name);
-            }}
-            className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded text-sm font-medium transition-colors"
-          >
-            <Plus className="w-4 h-4" /> Create Your First Workflow
-          </button>
+          {!searchQuery && (
+            <button
+              onClick={() => {
+                const name = `workflow_${Date.now()}`;
+                setWorkflowsData((d: Record<string, any>) => ({ ...d, [name]: {} }));
+                setCanvasWorkflow(name);
+              }}
+              className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded text-sm font-medium transition-colors"
+            >
+              <Plus className="w-4 h-4" /> Create Your First Workflow
+            </button>
+          )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {workflowNames.map(name => {
-            const wf = workflowsData[name] || {};
-            return (
-              <div
-                key={name}
-                className="group bg-gray-800/50 border border-gray-700 rounded-lg hover:border-gray-600 transition-all overflow-hidden cursor-pointer"
-                onClick={() => setCanvasWorkflow(name)}
-              >
-                <div className="p-4">
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <h3 className="font-semibold text-white font-mono">{name}</h3>
-                      {wf.description && (
-                        <p className="text-xs text-gray-400 mt-1">{wf.description}</p>
-                      )}
+        // Data Table
+        <div className="bg-gray-900/50 border border-gray-800 rounded-lg overflow-hidden">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-gray-800">
+                <th className="text-left py-4 px-6 text-sm font-medium text-gray-400">Name</th>
+                <th className="text-center py-4 px-6 text-sm font-medium text-gray-400">Step Count</th>
+                <th className="text-left py-4 px-6 text-sm font-medium text-gray-400">Created</th>
+                <th className="text-left py-4 px-6 text-sm font-medium text-gray-400">Updated</th>
+                <th className="text-right py-4 px-6 text-sm font-medium text-gray-400 w-24">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredWorkflows.map(({ name, data }, index) => (
+                <tr
+                  key={name}
+                  className="border-b border-gray-800/50 hover:bg-gray-800/30 cursor-pointer transition-colors"
+                  onClick={() => setCanvasWorkflow(name)}
+                >
+                  <td className="py-4 px-6">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded bg-primary/20 flex items-center justify-center">
+                        <WorkflowIcon className="w-4 h-4 text-primary" />
+                      </div>
+                      <div>
+                        <div className="text-white font-medium">{name}</div>
+                        {data.description && (
+                          <div className="text-xs text-gray-500 mt-0.5">{data.description}</div>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
-                      <button onClick={() => setCanvasWorkflow(name)} className="p-2 text-gray-400 hover:text-white transition-colors" title="Edit">
-                        <Settings className="w-4 h-4" />
+                  </td>
+                  <td className="py-4 px-6 text-center">
+                    <span className="text-gray-300 font-mono">{data.steps?.length || 0}</span>
+                  </td>
+                  <td className="py-4 px-6 text-gray-400 text-sm">
+                    {formatDate(getWorkflowDate(name))}
+                  </td>
+                  <td className="py-4 px-6 text-gray-400 text-sm">
+                    {formatDate(data.updated_at || getWorkflowDate(name))}
+                  </td>
+                  <td className="py-4 px-6 text-right">
+                    <div className="flex items-center justify-end gap-2" onClick={e => e.stopPropagation()}>
+                      <button
+                        className="p-2 text-gray-500 hover:text-white hover:bg-gray-800 rounded transition-colors"
+                        title="View JSON"
+                      >
+                        <Code className="w-4 h-4" />
                       </button>
-                      <button onClick={() => handleDelete(name)} className="p-2 text-gray-400 hover:text-red-400 transition-colors" title="Delete">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="relative">
+                        <button
+                          className="p-2 text-gray-500 hover:text-white hover:bg-gray-800 rounded transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setMenuOpen(menuOpen === name ? null : name);
+                          }}
+                        >
+                          <MoreVertical className="w-4 h-4" />
+                        </button>
+                        {menuOpen === name && (
+                          <div className="absolute right-0 top-full mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-xl py-1 min-w-32 z-10">
+                            <button
+                              className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCanvasWorkflow(name);
+                                setMenuOpen(null);
+                              }}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-gray-700"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDelete(name);
+                                setMenuOpen(null);
+                              }}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-3 text-xs text-gray-500">
-                    <span className="flex items-center gap-1">
-                      <ArrowRight className="w-3 h-3" />
-                      {wf.steps?.length || 0} steps
-                    </span>
-                    <span>v{wf.version || '1.0'}</span>
-                  </div>
-                </div>
-                {(wf.steps || []).length > 0 && (
-                  <div className="border-t border-gray-700/50 px-4 py-3 bg-gray-900/30">
-                    <div className="flex items-center gap-1 overflow-hidden">
-                      {(wf.steps || []).slice(0, 6).map((s: any, i: number) => (
-                        <React.Fragment key={s.id || i}>
-                          <span className={`text-xs px-1.5 py-0.5 rounded font-mono ${NODE_TYPE_COLORS[s.type] || 'bg-gray-700 text-gray-400'}`}>
-                            {s.id}
-                          </span>
-                          {i < Math.min((wf.steps || []).length, 6) - 1 && (
-                            <ChevronRight className="w-3 h-3 text-gray-600 flex-shrink-0" />
-                          )}
-                        </React.Fragment>
-                      ))}
-                      {(wf.steps || []).length > 6 && (
-                        <span className="text-xs text-gray-500">+{(wf.steps || []).length - 6} more</span>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
+      )}
+
+      {/* Click outside to close menu */}
+      {menuOpen && (
+        <div
+          className="fixed inset-0 z-0"
+          onClick={() => setMenuOpen(null)}
+        />
       )}
     </div>
   );
