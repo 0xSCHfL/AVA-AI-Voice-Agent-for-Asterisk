@@ -3255,6 +3255,63 @@ class Engine:
                     exc_info=True,
                 )
 
+            # Self-contained workflow: AI_WORKFLOW channel var overrides all context config.
+            # Workflow defines provider, pipeline, voice, prompt, and tools directly.
+            ai_workflow_value = None
+            try:
+                resp = await self.ari_client.send_command(
+                    "GET",
+                    f"channels/{caller_channel_id}/variable",
+                    params={"variable": "AI_WORKFLOW"},
+                )
+                if isinstance(resp, dict):
+                    ai_workflow_value = (resp.get("value") or "").strip()
+            except Exception:
+                logger.debug(
+                    "AI_WORKFLOW read failed; continuing without workflow",
+                    channel_id=caller_channel_id,
+                    exc_info=True,
+                )
+
+            workflow_cfg = None
+            if ai_workflow_value:
+                workflow_cfg = self.workflow_loader.get(ai_workflow_value)
+                if workflow_cfg:
+                    logger.info(
+                        "Self-contained workflow selected from channel var",
+                        channel_id=caller_channel_id,
+                        workflow=ai_workflow_value,
+                        provider=workflow_cfg.provider,
+                        pipeline=workflow_cfg.pipeline,
+                    )
+                    # Store workflow name so the workflow block executes
+                    session.workflow_name = ai_workflow_value
+                    # Workflow's provider/pipeline overrides everything
+                    if workflow_cfg.provider:
+                        session.provider_name = workflow_cfg.provider
+                        use_local = self._should_use_local_vad(workflow_cfg.provider)
+                        session.enhanced_vad_enabled = bool(self.vad_manager) and use_local
+                        await self._save_session(session)
+                    if workflow_cfg.pipeline:
+                        session.pipeline_name = workflow_cfg.pipeline
+                        await self._save_session(session)
+                    # Store workflow AI config on session for later use
+                    if workflow_cfg.prompt:
+                        session.workflow_prompt = workflow_cfg.prompt
+                    if workflow_cfg.voice_provider:
+                        session.workflow_voice_provider = workflow_cfg.voice_provider
+                    if workflow_cfg.voice_name:
+                        session.workflow_voice_name = workflow_cfg.voice_name
+                    if workflow_cfg.tools:
+                        session.workflow_tools = list(workflow_cfg.tools)
+                    await self._save_session(session)
+                else:
+                    logger.warning(
+                        "AI_WORKFLOW channel var set but workflow not found",
+                        channel_id=caller_channel_id,
+                        workflow=ai_workflow_value,
+                    )
+
             provider_aliases = {
                 "openai": "openai_realtime",
                 "deepgram_agent": "deepgram",
@@ -4001,6 +4058,12 @@ class Engine:
         pre_call_results = getattr(session, 'pre_call_results', None) or {}
         for key, value in pre_call_results.items():
             # Don't override built-in variables
+            if key not in substitutions:
+                substitutions[key] = str(value) if value else ""
+
+        # Add workflow variables (collected during workflow step execution)
+        workflow_variables = getattr(session, 'workflow_variables', None) or {}
+        for key, value in workflow_variables.items():
             if key not in substitutions:
                 substitutions[key] = str(value) if value else ""
 
@@ -10048,54 +10111,66 @@ class Engine:
                 logger.debug("Pipeline runner: no pipeline resolved", call_id=call_id)
                 return
             # Inject context prompt into LLM options with fallback chain
-            # Fallback chain: AI_CONTEXT → pipeline default → global llm_config
+            # Fallback chain: AI_WORKFLOW (self-contained) → AI_CONTEXT → pipeline default → global llm_config
             llm_options = pipeline.llm_options or {}
             prompt_source = "pipeline_default"
             try:
-                # Priority 1: Check if context has a custom prompt
-                # Use session.context_name (persisted string) instead of transport_profile.context (object may not persist)
-                context_prompt_injected = False
-                context_name = getattr(session, 'context_name', None)
-                if context_name:
-                    context_config = self.transport_orchestrator.get_context_config(context_name)
-                    if context_config and context_config.prompt:
-                        # Create a copy to avoid mutating the pipeline's original options
-                        llm_options = dict(llm_options)
-                        # Apply template substitution for caller context variables
-                        llm_options['system_prompt'] = self._apply_prompt_template_substitution(context_config.prompt, session)
-                        prompt_source = "context_injection"
-                        context_prompt_injected = True
-                        logger.info(
-                            "Pipeline LLM prompt resolved from context",
-                            call_id=call_id,
-                            context=context_name,
-                            prompt_length=len(context_config.prompt),
-                            prompt_preview=context_config.prompt[:80] + "..." if len(context_config.prompt) > 80 else context_config.prompt,
-                        )
-                
-                # Priority 2: If no context prompt, check if pipeline has default or use global
-                if not context_prompt_injected:
-                    # Check if system_prompt already in llm_options (pipeline default)
-                    if llm_options.get('system_prompt'):
-                        prompt_source = "pipeline_default"
-                        logger.info(
-                            "Pipeline LLM prompt using pipeline default",
-                            call_id=call_id,
-                            prompt_length=len(llm_options['system_prompt']),
-                        )
-                    else:
-                        # Priority 3: Fall back to global llm_config
-                        global_prompt = getattr(self.config.llm, 'prompt', None)
-                        if global_prompt:
+                # Priority 0: Self-contained workflow prompt (AI_WORKFLOW channel var)
+                workflow_prompt = getattr(session, 'workflow_prompt', None)
+                if workflow_prompt:
+                    llm_options = dict(llm_options)
+                    llm_options['system_prompt'] = self._apply_prompt_template_substitution(workflow_prompt, session)
+                    prompt_source = "workflow_prompt"
+                    logger.info(
+                        "Pipeline LLM prompt resolved from self-contained workflow",
+                        call_id=call_id,
+                        workflow=getattr(session, 'workflow_name', None),
+                        prompt_length=len(workflow_prompt),
+                    )
+                else:
+                    # Priority 1: Check if context has a custom prompt
+                    context_prompt_injected = False
+                    context_name = getattr(session, 'context_name', None)
+                    if context_name:
+                        context_config = self.transport_orchestrator.get_context_config(context_name)
+                        if context_config and context_config.prompt:
+                            # Create a copy to avoid mutating the pipeline's original options
                             llm_options = dict(llm_options)
                             # Apply template substitution for caller context variables
-                            llm_options['system_prompt'] = self._apply_prompt_template_substitution(global_prompt, session)
-                            prompt_source = "global_llm_config"
+                            llm_options['system_prompt'] = self._apply_prompt_template_substitution(context_config.prompt, session)
+                            prompt_source = "context_injection"
+                            context_prompt_injected = True
                             logger.info(
-                                "Pipeline LLM prompt resolved from global config",
+                                "Pipeline LLM prompt resolved from context",
                                 call_id=call_id,
-                                prompt_length=len(global_prompt),
+                                context=context_name,
+                                prompt_length=len(context_config.prompt),
+                                prompt_preview=context_config.prompt[:80] + "..." if len(context_config.prompt) > 80 else context_config.prompt,
                             )
+
+                    # Priority 2: If no context prompt, check if pipeline has default or use global
+                    if not context_prompt_injected:
+                        # Check if system_prompt already in llm_options (pipeline default)
+                        if llm_options.get('system_prompt'):
+                            prompt_source = "pipeline_default"
+                            logger.info(
+                                "Pipeline LLM prompt using pipeline default",
+                                call_id=call_id,
+                                prompt_length=len(llm_options['system_prompt']),
+                            )
+                        else:
+                            # Priority 3: Fall back to global llm_config
+                            global_prompt = getattr(self.config.llm, 'prompt', None)
+                            if global_prompt:
+                                llm_options = dict(llm_options)
+                                # Apply template substitution for caller context variables
+                                llm_options['system_prompt'] = self._apply_prompt_template_substitution(global_prompt, session)
+                                prompt_source = "global_llm_config"
+                                logger.info(
+                                    "Pipeline LLM prompt resolved from global config",
+                                    call_id=call_id,
+                                    prompt_length=len(global_prompt),
+                                )
             except Exception as exc:
                 logger.error(
                     "Failed to inject context prompt into pipeline LLM options",
@@ -11978,6 +12053,27 @@ class Engine:
                     # Start background music if configured for this context (AAVA-89)
                     if context_config.background_music:
                         await self._start_background_music(session, context_config.background_music)
+
+            # Self-contained workflow prompt: AI_WORKFLOW channel var sets workflow_prompt
+            # on session. If no context prompt was set above, use workflow_prompt.
+            if not context_config or not context_config.prompt:
+                workflow_prompt = getattr(session, 'workflow_prompt', None)
+                if workflow_prompt:
+                    prompt_to_apply = self._apply_prompt_template_substitution(workflow_prompt, session)
+                    if getattr(session, "is_outbound", False) and getattr(session, "outbound_custom_vars", None):
+                        prompt_to_apply = self._append_outbound_custom_vars_to_prompt(
+                            prompt_to_apply,
+                            getattr(session, "outbound_custom_vars", {}) or {},
+                        )
+                    session.provider_overrides = dict(getattr(session, "provider_overrides", {}) or {})
+                    session.provider_overrides["prompt"] = prompt_to_apply
+                    logger.info(
+                        "Stored self-contained workflow prompt for provider session",
+                        call_id=session.call_id,
+                        workflow=getattr(session, 'workflow_name', None),
+                        prompt_length=len(prompt_to_apply or ""),
+                    )
+                    await self._save_session(session)
             
             # Note: TransportCard will be emitted by legacy code path
             
@@ -13007,16 +13103,18 @@ class Engine:
                 logger.debug("Pre-call tool execution failed", call_id=call_id, exc_info=True)
 
             # Workflow: structured conversation flow (runs before provider session)
-            # Skip if pipeline mode is already active for this call
-            workflow_name = None
-            if not getattr(session, "pipeline_name", None):
-                try:
-                    if session and getattr(session, "context_name", None):
-                        ctx_cfg = self.transport_orchestrator.get_context_config(session.context_name)
-                        if ctx_cfg:
-                            workflow_name = getattr(ctx_cfg, "workflow", None)
-                except Exception:
-                    logger.debug("Failed to get workflow from context", call_id=call_id, exc_info=True)
+            # Priority: AI_WORKFLOW channel var (self-contained) > context.workflow (context-bound)
+            workflow_name = getattr(session, "workflow_name", None)
+            if not workflow_name:
+                # Fall back to context-bound workflow (existing behavior)
+                if not getattr(session, "pipeline_name", None):
+                    try:
+                        if session and getattr(session, "context_name", None):
+                            ctx_cfg = self.transport_orchestrator.get_context_config(session.context_name)
+                            if ctx_cfg:
+                                workflow_name = getattr(ctx_cfg, "workflow", None)
+                    except Exception:
+                        logger.debug("Failed to get workflow from context", call_id=call_id, exc_info=True)
 
             if workflow_name:
                 from datetime import datetime

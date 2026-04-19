@@ -5,7 +5,7 @@ Defines the YAML-parsable schema for workflow definitions and the runtime
 execution state used by WorkflowEngine.
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from typing import Dict, List, Optional, Any, Union
 from enum import Enum
 
@@ -125,11 +125,56 @@ class Workflow(BaseModel):
         description="Default values for workflow variables (overridable per-call)"
     )
 
+    # --- Self-contained AI config ---
+    # Provider (full-agent like openai_realtime, google_live, deepgram, etc.)
+    provider: Optional[str] = Field(
+        default=None,
+        description="AI provider for this workflow (mutually exclusive with pipeline)"
+    )
+    # Pipeline (modular STT→LLM→TTS like local_hybrid, telnyx, etc.)
+    pipeline: Optional[str] = Field(
+        default=None,
+        description="Pipeline for this workflow (mutually exclusive with provider)"
+    )
+    # TTS voice
+    voice_provider: Optional[str] = Field(
+        default=None,
+        description="TTS voice provider (openai, elevenlabs, google, etc.)"
+    )
+    voice_name: Optional[str] = Field(
+        default=None,
+        description="TTS voice name (alloy, emily, etc.)"
+    )
+    # System prompt / instructions
+    prompt: Optional[str] = Field(
+        default=None,
+        description="System instructions for the AI"
+    )
+    # Tools this workflow can call
+    tools: List[str] = Field(
+        default_factory=list,
+        description="Tool names this workflow can use during execution"
+    )
+
+    # Legacy alias for backward compat (Hybrid Option C)
+    global_prompt: Optional[str] = Field(default=None, alias="global_prompt")
+
     # Ordered list of steps
     steps: List[WorkflowStep] = Field(
         description="Steps executed in order",
         min_length=1
     )
+
+    @model_validator(mode='before')
+    @classmethod
+    def _resolve_prompt_alias(cls, values):
+        """If prompt is None but global_prompt is set, use global_prompt as prompt."""
+        if isinstance(values, dict):
+            prompt = values.get('prompt')
+            global_prompt = values.get('global_prompt')
+            if prompt is None and global_prompt is not None:
+                values['prompt'] = global_prompt
+        return values
 
     def get_step(self, step_id: str) -> Optional[WorkflowStep]:
         """Find a step by ID."""

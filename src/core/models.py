@@ -170,6 +170,11 @@ class CallSession:
     workflow_started_at: Optional[datetime] = None
     workflow_completed: bool = False
     workflow_terminated_reason: Optional[str] = None
+    # Self-contained workflow AI config (set when AI_WORKFLOW channel var is used)
+    workflow_prompt: Optional[str] = None
+    workflow_voice_provider: Optional[str] = None
+    workflow_voice_name: Optional[str] = None
+    workflow_tools: List[str] = field(default_factory=list)
 
     # Outbound campaign dialer (Milestone 22)
     is_outbound: bool = False

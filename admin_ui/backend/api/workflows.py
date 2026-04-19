@@ -39,7 +39,14 @@ class WorkflowGetResponse(BaseModel):
     variables: Dict[str, str] = {}
     steps: List[Dict[str, Any]]
     canvas: Optional[Dict[str, Any]] = None
-    # Global AI guidance (Hybrid mode - Option C)
+    # Self-contained AI config (new fields)
+    provider: Optional[str] = None
+    pipeline: Optional[str] = None
+    voice_provider: Optional[str] = None
+    voice_name: Optional[str] = None
+    prompt: Optional[str] = None
+    tools: List[str] = []
+    # Legacy aliases (backward compat)
     global_prompt: Optional[str] = None
     global_voice_provider: Optional[str] = None
     global_voice_name: Optional[str] = None
@@ -55,11 +62,18 @@ class WorkflowPutRequest(BaseModel):
     variables: Dict[str, str] = {}
     steps: List[Dict[str, Any]]
     canvas: Optional[Dict[str, Any]] = None
-    # Global AI guidance (Hybrid mode - Option C)
+    # Self-contained AI config: provider, pipeline, voice, prompt, tools
+    provider: Optional[str] = None        # openai_realtime, google_live, deepgram, etc.
+    pipeline: Optional[str] = None       # local_hybrid, telnyx, etc. (mutually exclusive with provider)
+    voice_provider: Optional[str] = None # openai, elevenlabs, google, etc.
+    voice_name: Optional[str] = None    # alloy, emily, etc.
+    prompt: Optional[str] = None        # System instructions (primary field)
+    tools: List[str] = []              # Tool names this workflow can use
+    # Legacy aliases (backward compatibility with Hybrid Option C)
     global_prompt: Optional[str] = None
     global_voice_provider: Optional[str] = None
     global_voice_name: Optional[str] = None
-    # Context binding: which AI_CONTEXT this workflow should be assigned to
+    # Context binding: which AI_CONTEXT this workflow should be assigned to (Hybrid Option C)
     context: Optional[str] = None
 
 
@@ -326,9 +340,8 @@ def _assign_workflow_to_context(workflow_name: str, context_name: str) -> None:
 
     This creates or updates the contexts.<name>.workflow entry in the
     local override config so the engine picks up the workflow at call start.
-    It also injects the workflow's global_prompt into the context's prompt
-    field so the engine's existing prompt injection (line ~10057 in engine.py)
-    picks it up automatically.
+    It also injects the workflow's provider/pipeline/prompt/tools into the
+    context so the engine's existing config resolution picks it up.
 
     Args:
         workflow_name: Name of the workflow to bind
@@ -341,11 +354,14 @@ def _assign_workflow_to_context(workflow_name: str, context_name: str) -> None:
     merged.setdefault("contexts", {})
     base_contexts = base.get("contexts", {})
 
-    # Get workflow's global_prompt to inject into context prompt
+    # Get workflow fields to inject into context
     workflow_def = merged["workflows"].get(workflow_name, {})
-    wf_global_prompt = workflow_def.get("global_prompt")
+    wf_prompt = workflow_def.get("prompt") or workflow_def.get("global_prompt")
+    wf_provider = workflow_def.get("provider")
+    wf_pipeline = workflow_def.get("pipeline")
+    wf_tools = workflow_def.get("tools")
 
-    # Build context value — preserve existing fields, override workflow + prompt
+    # Build context value — preserve existing fields, override workflow + AI config
     existing_ctx = merged["contexts"].get(context_name, {})
     if isinstance(existing_ctx, dict):
         ctx_value = dict(existing_ctx)
@@ -354,10 +370,15 @@ def _assign_workflow_to_context(workflow_name: str, context_name: str) -> None:
 
     ctx_value["workflow"] = workflow_name
 
-    # If workflow has a global_prompt, inject it as the context's prompt
-    # so the engine's existing prompt injection picks it up automatically
-    if wf_global_prompt:
-        ctx_value["prompt"] = wf_global_prompt
+    # Self-contained workflow fields: inject into context so Hybrid Option C works
+    if wf_prompt:
+        ctx_value["prompt"] = wf_prompt
+    if wf_provider:
+        ctx_value["provider"] = wf_provider
+    if wf_pipeline:
+        ctx_value["pipeline"] = wf_pipeline
+    if wf_tools:
+        ctx_value["tools"] = wf_tools
 
     merged["contexts"][context_name] = ctx_value
 
@@ -365,7 +386,7 @@ def _assign_workflow_to_context(workflow_name: str, context_name: str) -> None:
     import yaml
     content = yaml.dump(override, default_flow_style=False, sort_keys=False)
     config_api._write_local_config(content)
-    logger.info(f"Workflow '{workflow_name}' assigned to context '{context_name}' (global_prompt injected)")
+    logger.info(f"Workflow '{workflow_name}' assigned to context '{context_name}' (prompt/provider/pipeline/tools injected)")
 
 
 def _validate_workflow_steps(steps: List[Dict[str, Any]]) -> List[str]:
@@ -440,6 +461,12 @@ async def get_workflow(name: str) -> WorkflowGetResponse:
         variables=workflow.get("variables", {}),
         steps=workflow.get("steps", []),
         canvas=workflow.get("canvas"),
+        provider=workflow.get("provider"),
+        pipeline=workflow.get("pipeline"),
+        voice_provider=workflow.get("voice_provider"),
+        voice_name=workflow.get("voice_name"),
+        prompt=workflow.get("prompt"),
+        tools=workflow.get("tools", []),
         global_prompt=workflow.get("global_prompt"),
         global_voice_provider=workflow.get("global_voice_provider"),
         global_voice_name=workflow.get("global_voice_name"),
@@ -476,16 +503,26 @@ async def put_workflow(name: str, req: WorkflowPutRequest) -> WorkflowGetRespons
         edges = req.canvas.get("edges") or []
         engine_steps = _build_workflow_steps(nodes, edges)
 
+    # Resolve prompt: new field takes priority, global_prompt is a legacy alias
+    resolved_prompt = req.prompt if req.prompt is not None else req.global_prompt
+
     workflows[name] = {
         "description": req.description,
         "version": req.version,
         "variables": req.variables,
         "steps": engine_steps,
         "canvas": req.canvas,
-        # Hybrid mode fields
-        "global_prompt": req.global_prompt,
-        "global_voice_provider": req.global_voice_provider,
-        "global_voice_name": req.global_voice_name,
+        # Self-contained AI config (new fields)
+        "provider": req.provider,
+        "pipeline": req.pipeline,
+        "voice_provider": req.voice_provider,
+        "voice_name": req.voice_name,
+        "prompt": resolved_prompt,
+        "tools": req.tools,
+        # Legacy aliases (backward compat)
+        "global_prompt": resolved_prompt,
+        "global_voice_provider": req.global_voice_provider or req.voice_provider,
+        "global_voice_name": req.global_voice_name or req.voice_name,
         # Context binding
         "context": req.context,
     }
@@ -515,9 +552,15 @@ async def put_workflow(name: str, req: WorkflowPutRequest) -> WorkflowGetRespons
         variables=req.variables,
         steps=req.steps,
         canvas=req.canvas,
-        global_prompt=req.global_prompt,
-        global_voice_provider=req.global_voice_provider,
-        global_voice_name=req.global_voice_name,
+        provider=req.provider,
+        pipeline=req.pipeline,
+        voice_provider=req.voice_provider,
+        voice_name=req.voice_name,
+        prompt=resolved_prompt,
+        tools=req.tools,
+        global_prompt=resolved_prompt,
+        global_voice_provider=req.global_voice_provider or req.voice_provider,
+        global_voice_name=req.global_voice_name or req.voice_name,
         context=req.context,
     )
 
