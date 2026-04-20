@@ -86,6 +86,12 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false }) => {
     const { user } = useAuth();
     const isAdmin = user?.role === 'admin';
+    const userPages = user?.pages || [];
+
+    const canAccess = (path: string) => {
+        if (isAdmin) return true;
+        return userPages.includes(path);
+    };
 
     return (
         <aside className={`${isCollapsed ? 'w-16' : 'w-64'} border-r border-border bg-card/50 backdrop-blur flex flex-col h-full overflow-y-auto scrollbar-hide`}>
@@ -117,47 +123,48 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false }) => {
 
             <div className={`flex-1 py-6 ${isCollapsed ? 'px-2 space-y-1' : 'px-3'}`}>
                 <SidebarGroup title="Overview" isCollapsed={isCollapsed}>
-                    <SidebarItem to="/" icon={LayoutDashboard} label="Dashboard" end isCollapsed={isCollapsed} />
-                    <SidebarItem to="/history" icon={History} label="Call History" isCollapsed={isCollapsed} />
-                    <SidebarItem to="/scheduling" icon={CalendarClock} label="Call Scheduling" isCollapsed={isCollapsed} />
-                    <SidebarItem to="/wizard" icon={Zap} label="Setup Wizard" isCollapsed={isCollapsed} />
+                    {canAccess('/') && <SidebarItem to="/" icon={LayoutDashboard} label="Dashboard" end isCollapsed={isCollapsed} />}
+                    {canAccess('/history') && <SidebarItem to="/history" icon={History} label="Call History" isCollapsed={isCollapsed} />}
+                    {canAccess('/scheduling') && <SidebarItem to="/scheduling" icon={CalendarClock} label="Call Scheduling" isCollapsed={isCollapsed} />}
+                    {canAccess('/wizard') && <SidebarItem to="/wizard" icon={Zap} label="Setup Wizard" isCollapsed={isCollapsed} />}
                 </SidebarGroup>
 
                 <SidebarGroup title="Configuration" isCollapsed={isCollapsed}>
-                    <SidebarItem to="/providers" icon={Server} label="Providers" isCollapsed={isCollapsed} />
-                    <SidebarItem to="/pipelines" icon={Workflow} label="Pipelines" isCollapsed={isCollapsed} />
-                    <SidebarItem to="/contexts" icon={MessageSquare} label="Contexts" isCollapsed={isCollapsed} />
-                    <SidebarItem to="/workflows" icon={GitBranch} label="Workflows" isCollapsed={isCollapsed} />
-                    <SidebarItem to="/profiles" icon={Sliders} label="Profiles" isCollapsed={isCollapsed} />
-                    <SidebarItem to="/tools" icon={Wrench} label="Tools" isCollapsed={isCollapsed} />
-                    <SidebarItem to="/mcp" icon={Plug} label="MCP Servers" isCollapsed={isCollapsed} />
+                    {canAccess('/providers') && <SidebarItem to="/providers" icon={Server} label="Providers" isCollapsed={isCollapsed} />}
+                    {canAccess('/pipelines') && <SidebarItem to="/pipelines" icon={Workflow} label="Pipelines" isCollapsed={isCollapsed} />}
+                    {canAccess('/contexts') && <SidebarItem to="/contexts" icon={MessageSquare} label="Contexts" isCollapsed={isCollapsed} />}
+                    {canAccess('/workflows') && <SidebarItem to="/workflows" icon={GitBranch} label="Workflows" isCollapsed={isCollapsed} />}
+                    {canAccess('/profiles') && <SidebarItem to="/profiles" icon={Sliders} label="Profiles" isCollapsed={isCollapsed} />}
+                    {canAccess('/tools') && <SidebarItem to="/tools" icon={Wrench} label="Tools" isCollapsed={isCollapsed} />}
+                    {canAccess('/mcp') && <SidebarItem to="/mcp" icon={Plug} label="MCP Servers" isCollapsed={isCollapsed} />}
                 </SidebarGroup>
 
                 <SidebarGroup title="Advanced" isCollapsed={isCollapsed}>
-                    <SidebarItem to="/vad" icon={Activity} label="VAD" isCollapsed={isCollapsed} />
-                    <SidebarItem to="/streaming" icon={Zap} label="Streaming" isCollapsed={isCollapsed} />
-                    <SidebarItem to="/llm" icon={Brain} label="LLM Defaults" isCollapsed={isCollapsed} />
-                    <SidebarItem to="/transport" icon={Radio} label="Transport" isCollapsed={isCollapsed} />
-                    <SidebarItem to="/barge-in" icon={Globe} label="Barge-In" isCollapsed={isCollapsed} />
-                    <SidebarItem to="/yaml" icon={Code} label="Raw YAML" isCollapsed={isCollapsed} />
+                    {canAccess('/vad') && <SidebarItem to="/vad" icon={Activity} label="VAD" isCollapsed={isCollapsed} />}
+                    {canAccess('/streaming') && <SidebarItem to="/streaming" icon={Zap} label="Streaming" isCollapsed={isCollapsed} />}
+                    {canAccess('/llm') && <SidebarItem to="/llm" icon={Brain} label="LLM Defaults" isCollapsed={isCollapsed} />}
+                    {canAccess('/transport') && <SidebarItem to="/transport" icon={Radio} label="Transport" isCollapsed={isCollapsed} />}
+                    {canAccess('/barge-in') && <SidebarItem to="/barge-in" icon={Globe} label="Barge-In" isCollapsed={isCollapsed} />}
+                    {canAccess('/yaml') && <SidebarItem to="/yaml" icon={Code} label="Raw YAML" isCollapsed={isCollapsed} />}
                 </SidebarGroup>
 
                 <SidebarGroup title="System" isCollapsed={isCollapsed}>
-                    <SidebarItem to="/env" icon={Container} label="Environment" isCollapsed={isCollapsed} />
-                    <SidebarItem to="/docker" icon={HardDrive} label="Docker Services" isCollapsed={isCollapsed} />
-                    <SidebarItem to="/asterisk" icon={Phone} label="Asterisk" isCollapsed={isCollapsed} />
-                    <SidebarItem to="/logs" icon={FileText} label="System Logs" isCollapsed={isCollapsed} />
-                    <SidebarItem to="/terminal" icon={Terminal} label="Terminal" isCollapsed={isCollapsed} />
-                    <SidebarItem to="/models" icon={ArrowUpCircle} label="Models" isCollapsed={isCollapsed} />
-                    <SidebarItem to="/updates" icon={AlertTriangle} label="Updates" isCollapsed={isCollapsed} />
+                    {canAccess('/env') && <SidebarItem to="/env" icon={Container} label="Environment" isCollapsed={isCollapsed} />}
+                    {canAccess('/docker') && <SidebarItem to="/docker" icon={HardDrive} label="Docker Services" isCollapsed={isCollapsed} />}
+                    {canAccess('/asterisk') && <SidebarItem to="/asterisk" icon={Phone} label="Asterisk" isCollapsed={isCollapsed} />}
+                    {canAccess('/logs') && <SidebarItem to="/logs" icon={FileText} label="System Logs" isCollapsed={isCollapsed} />}
+                    {canAccess('/terminal') && <SidebarItem to="/terminal" icon={Terminal} label="Terminal" isCollapsed={isCollapsed} />}
+                    {canAccess('/models') && <SidebarItem to="/models" icon={ArrowUpCircle} label="Models" isCollapsed={isCollapsed} />}
+                    {canAccess('/updates') && <SidebarItem to="/updates" icon={AlertTriangle} label="Updates" isCollapsed={isCollapsed} />}
                 </SidebarGroup>
 
                 <SidebarGroup title="Support" isCollapsed={isCollapsed}>
-                    {isAdmin && (
+                    {canAccess('/users') && isAdmin && (
                         <SidebarItem to="/users" icon={Users} label="User Management" isCollapsed={isCollapsed} />
                     )}
-                    <SidebarItem to="/settings" icon={Settings} label="Settings" isCollapsed={isCollapsed} />
-                    <SidebarItem to="/help" icon={HelpCircle} label="Help" isCollapsed={isCollapsed} />
+                    {canAccess('/settings') && <SidebarItem to="/settings" icon={Settings} label="Settings" isCollapsed={isCollapsed} />}
+                    {canAccess('/help') && <SidebarItem to="/help" icon={HelpCircle} label="Help" isCollapsed={isCollapsed} />}
+                    {canAccess('/docs') && (
                     <a
                         href="/docs"
                         target="_blank"
@@ -168,6 +175,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false }) => {
                         <ExternalLink className="w-4 h-4 flex-shrink-0" />
                         {!isCollapsed && 'API Docs'}
                     </a>
+                    )}
                 </SidebarGroup>
             </div>
         </aside>

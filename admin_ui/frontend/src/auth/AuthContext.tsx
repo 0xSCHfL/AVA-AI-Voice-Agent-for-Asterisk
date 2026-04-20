@@ -7,6 +7,7 @@ interface User {
     role?: 'admin' | 'user';
     disabled?: boolean;
     must_change_password?: boolean;
+    pages?: string[];
 }
 
 interface AuthContextType {

@@ -11,14 +11,45 @@ interface User {
     role: 'admin' | 'user';
     disabled: boolean;
     must_change_password: boolean;
+    pages: string[];
     created_at: string | null;
 }
+
+const PAGE_OPTIONS = [
+    { value: '/', label: 'Dashboard' },
+    { value: '/history', label: 'Call History' },
+    { value: '/scheduling', label: 'Call Scheduling' },
+    { value: '/wizard', label: 'Setup Wizard' },
+    { value: '/providers', label: 'Providers' },
+    { value: '/pipelines', label: 'Pipelines' },
+    { value: '/contexts', label: 'Contexts' },
+    { value: '/workflows', label: 'Workflows' },
+    { value: '/profiles', label: 'Profiles' },
+    { value: '/tools', label: 'Tools' },
+    { value: '/mcp', label: 'MCP Servers' },
+    { value: '/vad', label: 'VAD' },
+    { value: '/streaming', label: 'Streaming' },
+    { value: '/llm', label: 'LLM Defaults' },
+    { value: '/transport', label: 'Transport' },
+    { value: '/barge-in', label: 'Barge-In' },
+    { value: '/yaml', label: 'Raw YAML' },
+    { value: '/env', label: 'Environment' },
+    { value: '/docker', label: 'Docker Services' },
+    { value: '/asterisk', label: 'Asterisk' },
+    { value: '/logs', label: 'System Logs' },
+    { value: '/terminal', label: 'Terminal' },
+    { value: '/models', label: 'Models' },
+    { value: '/updates', label: 'Updates' },
+    { value: '/settings', label: 'Settings' },
+    { value: '/help', label: 'Help' },
+];
 
 interface UserCreate {
     username: string;
     email: string | null;
     password: string;
     role: 'admin' | 'user';
+    pages?: string[];
 }
 
 interface UserUpdate {
@@ -26,6 +57,7 @@ interface UserUpdate {
     role?: 'admin' | 'user';
     disabled?: boolean;
     new_password?: string;
+    pages?: string[];
 }
 
 const UserManagementPage = () => {
@@ -339,25 +371,38 @@ interface ModalProps {
     saving?: boolean;
 }
 
+const DEFAULT_PAGES = ['/', '/history', '/settings', '/help'];
+
 const CreateUserModal = ({ onClose, onSubmit, saving }: ModalProps & { onSubmit: (data: UserCreate) => void }) => {
     const [username, setUsername] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [role, setRole] = useState<'admin' | 'user'>('user');
+    const [pages, setPages] = useState<string[]>(DEFAULT_PAGES);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        const selectedPages = role === 'admin' ? PAGE_OPTIONS.map(p => p.value) : pages;
         onSubmit({
             username,
             email: email || null,
             password,
-            role
+            role,
+            pages: selectedPages
         });
+    };
+
+    const togglePage = (value: string) => {
+        setPages(prev =>
+            prev.includes(value)
+                ? prev.filter(p => p !== value)
+                : [...prev, value]
+        );
     };
 
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-background rounded-lg shadow-lg w-full max-w-md p-6">
+            <div className="bg-background rounded-lg shadow-lg w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
                 <h2 className="text-xl font-semibold mb-4">Create New User</h2>
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
@@ -401,6 +446,40 @@ const CreateUserModal = ({ onClose, onSubmit, saving }: ModalProps & { onSubmit:
                             <option value="admin">Admin</option>
                         </select>
                     </div>
+                    {role === 'user' && (
+                        <div>
+                            <label className="block text-sm font-medium mb-2">Page Access</label>
+                            <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto border border-input rounded p-2">
+                                {PAGE_OPTIONS.filter(p => p.value !== '/users').map((page) => (
+                                    <label key={page.value} className="flex items-center gap-2 text-sm cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={pages.includes(page.value)}
+                                            onChange={() => togglePage(page.value)}
+                                            className="rounded"
+                                        />
+                                        {page.label}
+                                    </label>
+                                ))}
+                            </div>
+                            <div className="flex gap-2 mt-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setPages(PAGE_OPTIONS.filter(p => p.value !== '/users').map(p => p.value))}
+                                    className="text-xs text-muted-foreground hover:text-foreground"
+                                >
+                                    Select All
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setPages(['/', '/history', '/settings', '/help'])}
+                                    className="text-xs text-muted-foreground hover:text-foreground"
+                                >
+                                    Default
+                                </button>
+                            </div>
+                        </div>
+                    )}
                     <div className="flex justify-end gap-2 pt-2">
                         <button
                             type="button"
@@ -428,6 +507,8 @@ const EditUserModal = ({ user, onClose, onSubmit, saving }: ModalProps & { user:
     const [role, setRole] = useState<'admin' | 'user'>(user.role);
     const [disabled, setDisabled] = useState(user.disabled);
     const [newPassword, setNewPassword] = useState('');
+    const [pages, setPages] = useState<string[]>(user.pages || []);
+    const [showPages, setShowPages] = useState(false);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -435,13 +516,22 @@ const EditUserModal = ({ user, onClose, onSubmit, saving }: ModalProps & { user:
             email: email || null,
             role,
             disabled,
-            new_password: newPassword || undefined
+            new_password: newPassword || undefined,
+            pages: role === 'admin' ? undefined : pages
         });
+    };
+
+    const togglePage = (value: string) => {
+        setPages(prev =>
+            prev.includes(value)
+                ? prev.filter(p => p !== value)
+                : [...prev, value]
+        );
     };
 
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-background rounded-lg shadow-lg w-full max-w-md p-6">
+            <div className="bg-background rounded-lg shadow-lg w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
                 <h2 className="text-xl font-semibold mb-4">Edit User: {user.username}</h2>
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
@@ -484,6 +574,50 @@ const EditUserModal = ({ user, onClose, onSubmit, saving }: ModalProps & { user:
                         />
                         <label htmlFor="disabled" className="text-sm font-medium">Account disabled</label>
                     </div>
+                    {role === 'user' && (
+                        <div>
+                            <button
+                                type="button"
+                                onClick={() => setShowPages(!showPages)}
+                                className="text-sm font-medium text-primary hover:underline"
+                            >
+                                {showPages ? 'Hide' : 'Show'} Page Access ({pages.length} pages)
+                            </button>
+                            {showPages && (
+                                <div className="mt-2 grid grid-cols-2 gap-2 max-h-48 overflow-y-auto border border-input rounded p-2">
+                                    {PAGE_OPTIONS.filter(p => p.value !== '/users').map((page) => (
+                                        <label key={page.value} className="flex items-center gap-2 text-sm cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={pages.includes(page.value)}
+                                                onChange={() => togglePage(page.value)}
+                                                className="rounded"
+                                            />
+                                            {page.label}
+                                        </label>
+                                    ))}
+                                </div>
+                            )}
+                            {showPages && (
+                                <div className="flex gap-2 mt-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setPages(PAGE_OPTIONS.filter(p => p.value !== '/users').map(p => p.value))}
+                                        className="text-xs text-muted-foreground hover:text-foreground"
+                                    >
+                                        Select All
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setPages(['/', '/history', '/settings', '/help'])}
+                                        className="text-xs text-muted-foreground hover:text-foreground"
+                                    >
+                                        Default
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
                     <div>
                         <label className="block text-sm font-medium mb-1">New Password (leave blank to keep current)</label>
                         <input

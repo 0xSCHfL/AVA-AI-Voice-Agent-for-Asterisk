@@ -108,6 +108,30 @@ const AdminGate = ({ children }: { children: React.ReactNode }) => {
     return <>{children}</>;
 };
 
+// Page Gate — redirects to home if user doesn't have access to this page
+const PageGate = ({ children, path }: { children: React.ReactNode; path: string }) => {
+    const { user, loading } = useAuth();
+    const navigate = useNavigate();
+
+    const canAccess = () => {
+        if (user?.role === 'admin') return true;
+        if (!user?.pages) return false;
+        return user.pages.includes(path);
+    };
+
+    useEffect(() => {
+        if (!loading && user && !canAccess()) {
+            navigate('/', { replace: true });
+        }
+    }, [loading, user, navigate]);
+
+    if (!loading && user && !canAccess()) {
+        return null;
+    }
+
+    return <>{children}</>;
+};
+
 // Auth/Setup Guard
 const SetupGuard = ({ children }: { children: React.ReactNode }) => {
     const [loading, setLoading] = useState(true);
@@ -201,32 +225,32 @@ function App() {
                                         <Route path="/login" element={<LoginPage />} />
                                         <Route path="/wizard" element={<Wizard />} />
                                         <Route element={<LayoutWrapper />}>
-                                        <Route path="/" element={<Dashboard />} />
-                                        <Route path="/history" element={<CallHistoryPage />} />
-                                        <Route path="/scheduling" element={<CallSchedulingPage />} />
-                                        <Route path="/providers" element={<ProvidersPage />} />
-                                        <Route path="/pipelines" element={<PipelinesPage />} />
-                                        <Route path="/contexts" element={<ContextsPage />} />
-                                            <Route path="/workflows" element={<WorkflowsPage />} />
-                                        <Route path="/profiles" element={<ProfilesPage />} />
-                                        <Route path="/tools" element={<ToolsPage />} />
-                                        <Route path="/mcp" element={<MCPPage />} />
+                                        <Route path="/" element={<PageGate path="/"><Dashboard /></PageGate>} />
+                                        <Route path="/history" element={<PageGate path="/history"><CallHistoryPage /></PageGate>} />
+                                        <Route path="/scheduling" element={<PageGate path="/scheduling"><CallSchedulingPage /></PageGate>} />
+                                        <Route path="/providers" element={<PageGate path="/providers"><ProvidersPage /></PageGate>} />
+                                        <Route path="/pipelines" element={<PageGate path="/pipelines"><PipelinesPage /></PageGate>} />
+                                        <Route path="/contexts" element={<PageGate path="/contexts"><ContextsPage /></PageGate>} />
+                                        <Route path="/workflows" element={<PageGate path="/workflows"><WorkflowsPage /></PageGate>} />
+                                        <Route path="/profiles" element={<PageGate path="/profiles"><ProfilesPage /></PageGate>} />
+                                        <Route path="/tools" element={<PageGate path="/tools"><ToolsPage /></PageGate>} />
+                                        <Route path="/mcp" element={<PageGate path="/mcp"><MCPPage /></PageGate>} />
                                         <Route path="/users" element={<AdminGate><UserManagementPage /></AdminGate>} />
-                                        <Route path="/vad" element={<VADPage />} />
-                                        <Route path="/streaming" element={<StreamingPage />} />
-                                        <Route path="/llm" element={<LLMPage />} />
-                                        <Route path="/transport" element={<TransportPage />} />
-                                        <Route path="/barge-in" element={<BargeInPage />} />
-                                        <Route path="/yaml" element={<RawYamlPage />} />
-                                        <Route path="/env" element={<EnvPage />} />
-                                        <Route path="/docker" element={<DockerPage />} />
-                                        <Route path="/asterisk" element={<AsteriskPage />} />
-                                        <Route path="/logs" element={<LogsPage />} />
-                                        <Route path="/terminal" element={<TerminalPage />} />
-                                        <Route path="/models" element={<ModelsPage />} />
-                                        <Route path="/updates" element={<UpdatesPage />} />
-                                        <Route path="/help" element={<HelpPage />} />
-                                        <Route path="/settings" element={<SettingsPage />} />
+                                        <Route path="/vad" element={<PageGate path="/vad"><VADPage /></PageGate>} />
+                                        <Route path="/streaming" element={<PageGate path="/streaming"><StreamingPage /></PageGate>} />
+                                        <Route path="/llm" element={<PageGate path="/llm"><LLMPage /></PageGate>} />
+                                        <Route path="/transport" element={<PageGate path="/transport"><TransportPage /></PageGate>} />
+                                        <Route path="/barge-in" element={<PageGate path="/barge-in"><BargeInPage /></PageGate>} />
+                                        <Route path="/yaml" element={<PageGate path="/yaml"><RawYamlPage /></PageGate>} />
+                                        <Route path="/env" element={<PageGate path="/env"><EnvPage /></PageGate>} />
+                                        <Route path="/docker" element={<PageGate path="/docker"><DockerPage /></PageGate>} />
+                                        <Route path="/asterisk" element={<PageGate path="/asterisk"><AsteriskPage /></PageGate>} />
+                                        <Route path="/logs" element={<PageGate path="/logs"><LogsPage /></PageGate>} />
+                                        <Route path="/terminal" element={<PageGate path="/terminal"><TerminalPage /></PageGate>} />
+                                        <Route path="/models" element={<PageGate path="/models"><ModelsPage /></PageGate>} />
+                                        <Route path="/updates" element={<PageGate path="/updates"><UpdatesPage /></PageGate>} />
+                                        <Route path="/help" element={<PageGate path="/help"><HelpPage /></PageGate>} />
+                                        <Route path="/settings" element={<PageGate path="/settings"><SettingsPage /></PageGate>} />
                                         <Route path="*" element={<Navigate to="/" replace />} />
                                     </Route>
                                 </Routes>

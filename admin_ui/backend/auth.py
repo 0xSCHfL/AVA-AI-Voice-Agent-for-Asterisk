@@ -42,16 +42,28 @@ class TokenData(BaseModel):
     username: Optional[str] = None
 
 
+PAGE_OPTIONS = [
+    "/", "/history", "/scheduling", "/wizard",
+    "/providers", "/pipelines", "/contexts", "/workflows", "/profiles", "/tools", "/mcp",
+    "/vad", "/streaming", "/llm", "/transport", "/barge-in", "/yaml",
+    "/env", "/docker", "/asterisk", "/logs", "/terminal", "/models", "/updates",
+    "/settings", "/help", "/users"
+]
+
+DEFAULT_USER_PAGES = ["/", "/history", "/settings", "/help"]
+
 class User(BaseModel):
     username: str
     role: Optional[str] = "user"
     disabled: Optional[bool] = None
     must_change_password: Optional[bool] = False
+    pages: Optional[list] = None
 
 
 class UserInDB(User):
     hashed_password: str
     must_change_password: Optional[bool] = False
+    pages: Optional[list] = None
 
 
 class ChangePasswordRequest(BaseModel):
@@ -102,6 +114,13 @@ def load_users():
             logging.getLogger(__name__).info(
                 f"Migrating user '{username}' to include role='{user_data['role']}'"
             )
+
+        if not user_data.get("pages"):
+            if username == "admin":
+                user_data["pages"] = PAGE_OPTIONS
+            else:
+                user_data["pages"] = DEFAULT_USER_PAGES
+            modified = True
 
     if modified:
         save_users(users)
@@ -158,6 +177,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         role=role,
         disabled=user.disabled,
         must_change_password=user.must_change_password,
+        pages=user.pages,
     )
 
 
@@ -272,6 +292,7 @@ class UserCreateRequest(BaseModel):
     email: Optional[str] = None
     password: str
     role: str = "user"
+    pages: Optional[list] = None
 
 
 class UserUpdateRequest(BaseModel):
@@ -279,6 +300,7 @@ class UserUpdateRequest(BaseModel):
     role: Optional[str] = None
     disabled: Optional[bool] = None
     new_password: Optional[str] = None
+    pages: Optional[list] = None
 
 
 @router.get("/users", dependencies=[Depends(get_admin_user)])
@@ -291,6 +313,7 @@ async def list_users():
             "role": users[u].get("role", "user"),
             "disabled": users[u].get("disabled", False),
             "must_change_password": users[u].get("must_change_password", False),
+            "pages": users[u].get("pages", DEFAULT_USER_PAGES),
             "created_at": users[u].get("created_at"),
         }
         for u in users
@@ -309,6 +332,7 @@ async def register_user(create: UserCreateRequest):
         "role": create.role,
         "disabled": False,
         "must_change_password": False,
+        "pages": create.pages if create.pages is not None else DEFAULT_USER_PAGES,
         "created_at": datetime.utcnow().isoformat(),
     }
     save_users(users)
@@ -326,6 +350,8 @@ async def update_user(username: str, update: UserUpdateRequest):
         users[username]["role"] = update.role
     if update.disabled is not None:
         users[username]["disabled"] = update.disabled
+    if update.pages is not None:
+        users[username]["pages"] = update.pages
     if update.new_password:
         users[username]["hashed_password"] = get_password_hash(update.new_password)
         users[username]["must_change_password"] = False
