@@ -1397,6 +1397,15 @@ providers:
     vad_end_of_speech_sensitivity: END_SENSITIVITY_HIGH
     vad_prefix_padding_ms: 20
     vad_silence_duration_ms: 500
+  google:
+    type: google
+    enabled: true
+    capabilities:
+      - tts
+    api_key: ${GOOGLE_API_KEY}
+    tts_voice_name: en-US-Neural2-C
+    tts_audio_encoding: MULAW
+    tts_sample_rate_hz: 8000
   local:
     # Local AI Server WebSocket URL. Bridge network uses container name.
     base_url: ${LOCAL_WS_URL:-ws://127.0.0.1:8765}
@@ -1649,7 +1658,7 @@ providers:
     style: 0.0
     use_speaker_boost: true
   openai_stt:
-    enabled: false
+    enabled: true
     capabilities:
       - stt
     input_encoding: linear16
