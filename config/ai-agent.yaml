@@ -1474,7 +1474,7 @@ providers:
     api_key: ${OPENAI_API_KEY}
     chat_base_url: https://api.openai.com/v1
     chat_model: gpt-4o-mini
-    enabled: false
+    enabled: true
     response_timeout_sec: 5
     temperature: 0.7
     type: openai
