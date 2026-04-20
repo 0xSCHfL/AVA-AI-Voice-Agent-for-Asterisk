@@ -1397,7 +1397,7 @@ providers:
     vad_end_of_speech_sensitivity: END_SENSITIVITY_HIGH
     vad_prefix_padding_ms: 20
     vad_silence_duration_ms: 500
-  google:
+  google_tts:
     type: google
     enabled: true
     capabilities:
