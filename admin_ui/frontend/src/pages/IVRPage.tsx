@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import axios from 'axios';
 import { toast } from 'sonner';
-import { useNavigate } from 'react-router-dom';
 import {
   Search, MoreVertical,
   Loader2, Phone, ChevronDown, Pencil, Copy as CopyIcon,
   ArrowUpDown, Trash2, Edit,
 } from 'lucide-react';
+import IVRCanvas from '../components/IVRCanvas';
 
 type SortOption = 'name_asc' | 'name_desc' | 'created_desc' | 'created_asc';
 
@@ -25,7 +25,7 @@ const IVRPage: React.FC = () => {
   const [sortBy, setSortBy] = useState<SortOption>('created_desc');
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
-  const navigate = useNavigate();
+  const [canvasIvr, setCanvasIvr] = useState<string | null>(null);
   const sortMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { fetchIvrs(); }, []);
@@ -62,12 +62,14 @@ const IVRPage: React.FC = () => {
   };
 
   const handleCreateNew = () => {
-    // Same pattern as WorkflowsPage: navigate to new IVR editor page
-    navigate('/ivrs/new');
+    // Same exact pattern as WorkflowsPage: create in-memory name, show canvas immediately
+    const name = `ivr_${Date.now()}`;
+    setIvrs((d: Record<string, any>) => ({ ...d, [name]: {} }));
+    setCanvasIvr(name);
   };
 
   const handleEdit = (name: string) => {
-    navigate(`/ivrs/${name}`);
+    setCanvasIvr(name);
   };
 
   const handleDeleteIvr = async (name: string) => {
@@ -109,6 +111,8 @@ const IVRPage: React.FC = () => {
       flow: data.flow,
       status: data.status,
     });
+    toast.success('IVR saved!');
+    fetchIvrs();
   };
 
   const filteredIvrs = useMemo(() => {
@@ -131,6 +135,40 @@ const IVRPage: React.FC = () => {
     });
     return list;
   }, [ivrNames, ivrs, searchQuery, sortBy]);
+
+  // When canvasIvr is set, show IVRCanvas full page (same pattern as WorkflowsPage)
+  if (canvasIvr !== null) {
+    const ivrData = ivrs[canvasIvr] || {};
+    return (
+      <IVRCanvas
+        key={canvasIvr}
+        name={canvasIvr}
+        initialData={ivrData}
+        allAgents={['services', 'offers', 'meetings', 'support', 'other']}
+        onSave={async (data) => {
+          try {
+            await axios.put(`/api/ivrs/${canvasIvr}`, {
+              name: canvasIvr,
+              description: ivrData.description || '',
+              languages: ivrData.languages || ['en'],
+              routes: ivrData.routes || {},
+              greeting_audio: ivrData.greeting_audio || {},
+              flow: data.flow,
+              status: data.status,
+            });
+            toast.success('IVR saved!');
+            fetchIvrs();
+          } catch (err: any) {
+            toast.error(err.response?.data?.detail || 'Failed to save IVR');
+          }
+        }}
+        onBack={() => {
+          setCanvasIvr(null);
+          fetchIvrs();
+        }}
+      />
+    );
+  }
 
   if (loading) {
     return (

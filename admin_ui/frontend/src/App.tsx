@@ -61,7 +61,6 @@ const UpdatesPage = lazy(() => import('./pages/System/UpdatesPage'));
 const AsteriskPage = lazy(() => import('./pages/System/AsteriskPage'));
 const WorkflowsPage = lazy(() => import("./pages/WorkflowsPage"));
 const IVRPage = lazy(() => import("./pages/IVRPage"));
-const IVREditorPage = lazy(() => import("./pages/IVREditorPage"));
 
 // Loading fallback for lazy-loaded pages
 const PageLoader = () => (
@@ -235,7 +234,6 @@ function App() {
                                         <Route path="/contexts" element={<PageGate path="/contexts"><ContextsPage /></PageGate>} />
                                         <Route path="/workflows" element={<PageGate path="/workflows"><WorkflowsPage /></PageGate>} />
                                         <Route path="/ivrs" element={<PageGate path="/ivrs"><IVRPage /></PageGate>} />
-                                        <Route path="/ivrs/:name" element={<IVREditorPage />} />
                                         <Route path="/profiles" element={<PageGate path="/profiles"><ProfilesPage /></PageGate>} />
                                         <Route path="/tools" element={<PageGate path="/tools"><ToolsPage /></PageGate>} />
                                         <Route path="/mcp" element={<PageGate path="/mcp"><MCPPage /></PageGate>} />
