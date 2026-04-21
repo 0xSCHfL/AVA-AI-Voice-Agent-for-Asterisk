@@ -2,10 +2,9 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import axios from 'axios';
 import { toast } from 'sonner';
 import {
-  Plus, Trash2, Search, MoreVertical,
+  Search, MoreVertical,
   Loader2, Phone, ChevronDown, Pencil, Copy as CopyIcon,
-  ArrowUpDown, Clock, X, Languages, Globe, Edit,
-  ChevronRight, ArrowLeft
+  ArrowUpDown, Trash2, Edit,
 } from 'lucide-react';
 import IVRCanvas from '../components/IVRCanvas';
 
@@ -18,16 +17,6 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: 'created_asc', label: 'Oldest First' },
 ];
 
-const LANGUAGES = [
-  { code: 'en', label: 'English', flag: '🇬🇧' },
-  { code: 'fr', label: 'French', flag: '🇫🇷' },
-  { code: 'nl', label: 'Dutch', flag: '🇳🇱' },
-  { code: 'lu', label: 'Luxembourgish', flag: '🇱🇺' },
-  { code: 'es', label: 'Spanish', flag: '🇪🇸' },
-  { code: 'de', label: 'German', flag: '🇩🇪' },
-  { code: 'pt', label: 'Portuguese', flag: '🇵🇹' },
-];
-
 const IVRPage: React.FC = () => {
   const [ivrs, setIvrs] = useState<Record<string, any>>({});
   const [ivrNames, setIvrNames] = useState<string[]>([]);
@@ -36,11 +25,7 @@ const IVRPage: React.FC = () => {
   const [sortBy, setSortBy] = useState<SortOption>('created_desc');
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [editingIvr, setEditingIvr] = useState<string | null>(null);
-  const [newIvrName, setNewIvrName] = useState('');
-  const [newIvrDescription, setNewIvrDescription] = useState('');
-  const [newIvrLanguages, setNewIvrLanguages] = useState<string[]>(['en']);
+  const [showList, setShowList] = useState(true);  // Toggle between list and editor
   const sortMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { fetchIvrs(); }, []);
@@ -76,30 +61,12 @@ const IVRPage: React.FC = () => {
     }
   };
 
-  const handleCreateIvr = async () => {
-    if (!newIvrName.trim()) {
-      setNewIvrName('new-ivr');
-    }
-    const name = newIvrName.trim() || 'new-ivr';
-    try {
-      await axios.put(`/api/ivrs/${name}`, {
-        name,
-        description: '',
-        languages: ['en'],
-        routes: {},
-        greeting_audio: {},
-        flow: { nodes: {}, rootHead: null },
-        status: 'draft',
-      });
-      setShowCreateModal(false);
-      setNewIvrName('');
-      setNewIvrDescription('');
-      setNewIvrLanguages(['en']);
-      fetchIvrs();
-      setEditingIvr(name);
-    } catch (err: any) {
-      toast.error(err.response?.data?.detail || 'Failed to create IVR');
-    }
+  const handleCreateNew = () => {
+    setShowList(false);
+  };
+
+  const handleEdit = (name: string) => {
+    setShowList(false);
   };
 
   const handleDeleteIvr = async (name: string) => {
@@ -164,23 +131,38 @@ const IVRPage: React.FC = () => {
     return list;
   }, [ivrNames, ivrs, searchQuery, sortBy]);
 
-  const getLanguageFlags = (codes: string[]) => {
-    return codes.map(c => LANGUAGES.find(l => l.code === c)?.flag || c).join(' ');
-  };
-
-  const getLanguageLabels = (codes: string[]) => {
-    return codes.map(c => LANGUAGES.find(l => l.code === c)?.label || c).join(', ');
-  };
-
-  // If editing an IVR, show the canvas
-  if (editingIvr) {
+  // Show the IVR editor directly (like the IVRBuilder design)
+  if (!showList) {
     return (
       <IVRCanvas
-        name={editingIvr}
-        initialData={ivrs[editingIvr]}
+        name="new-ivr"
+        initialData={{ flow: { nodes: {}, rootHead: null }, status: 'draft' }}
         allAgents={['services', 'offers', 'meetings', 'support', 'other']}
-        onSave={(data) => handleSaveIvr(editingIvr, data)}
-        onBack={() => { setEditingIvr(null); fetchIvrs(); }}
+        onSave={async (data) => {
+          // Create new IVR with a generated name
+          const timestamp = Date.now();
+          const name = `ivr-${timestamp}`;
+          try {
+            await axios.put(`/api/ivrs/${name}`, {
+              name,
+              description: '',
+              languages: ['en'],
+              routes: {},
+              greeting_audio: {},
+              flow: data.flow,
+              status: data.status,
+            });
+            toast.success('IVR created!');
+            fetchIvrs();
+            setShowList(true);
+          } catch (err: any) {
+            toast.error(err.response?.data?.detail || 'Failed to create IVR');
+          }
+        }}
+        onBack={() => {
+          fetchIvrs();
+          setShowList(true);
+        }}
       />
     );
   }
@@ -204,10 +186,9 @@ const IVRPage: React.FC = () => {
           </p>
         </div>
         <button
-          onClick={() => setShowCreateModal(true)}
+          onClick={handleCreateNew}
           className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
         >
-          <Plus className="w-4 h-4" />
           Create IVR
         </button>
       </div>
@@ -256,10 +237,9 @@ const IVRPage: React.FC = () => {
           <h3 className="text-lg font-medium mb-1">No IVRs yet</h3>
           <p className="text-sm text-muted-foreground mb-4">Create your first IVR flow to get started</p>
           <button
-            onClick={() => setShowCreateModal(true)}
+            onClick={handleCreateNew}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
           >
-            <Plus className="w-4 h-4" />
             Create IVR
           </button>
         </div>
@@ -280,29 +260,20 @@ const IVRPage: React.FC = () => {
                     <p className="text-sm text-muted-foreground">
                       {ivr.description || 'No description'}
                     </p>
-                    <div className="flex items-center gap-4 mt-2">
-                      <span className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Languages className="w-3 h-3" />
-                        {getLanguageFlags(ivr.languages || ['en'])}
+                    {ivr.status && (
+                      <span className={`text-xs px-2 py-0.5 rounded-full mt-1 inline-block ${
+                        ivr.status === 'published'
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-muted text-muted-foreground'
+                      }`}>
+                        {ivr.status}
                       </span>
-                      <span className="text-xs text-muted-foreground">
-                        {getLanguageLabels(ivr.languages || ['en'])}
-                      </span>
-                      {ivr.status && (
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${
-                          ivr.status === 'published'
-                            ? 'bg-green-100 text-green-700'
-                            : 'bg-muted text-muted-foreground'
-                        }`}>
-                          {ivr.status}
-                        </span>
-                      )}
-                    </div>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => setEditingIvr(ivr.name)}
+                    onClick={() => handleEdit(ivr.name)}
                     className="p-2 rounded-md hover:bg-accent transition-colors"
                     title="Edit"
                   >
@@ -325,7 +296,7 @@ const IVRPage: React.FC = () => {
                     {menuOpen === ivr.name && (
                       <div className="absolute right-0 mt-2 w-40 rounded-md border bg-popover shadow-lg z-50 py-1">
                         <button
-                          onClick={() => { setEditingIvr(ivr.name); setMenuOpen(null); }}
+                          onClick={() => { handleEdit(ivr.name); setMenuOpen(null); }}
                           className="w-full px-3 py-2 text-left text-sm flex items-center gap-2 hover:bg-accent"
                         >
                           <Edit className="w-4 h-4" /> Edit
@@ -345,8 +316,6 @@ const IVRPage: React.FC = () => {
           </div>
         </div>
       )}
-
-      {/* Create Modal - simplified, just name input then opens editor */}
     </div>
   );
 };
