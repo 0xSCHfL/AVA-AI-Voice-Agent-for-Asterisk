@@ -25,7 +25,7 @@ const IVRPage: React.FC = () => {
   const [sortBy, setSortBy] = useState<SortOption>('created_desc');
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
-  const [showList, setShowList] = useState(true);  // Toggle between list and editor
+  const [canvasIvr, setCanvasIvr] = useState<string | null>(null);
   const sortMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { fetchIvrs(); }, []);
@@ -62,11 +62,14 @@ const IVRPage: React.FC = () => {
   };
 
   const handleCreateNew = () => {
-    setShowList(false);
+    // Same pattern as WorkflowsPage: create with timestamp name and open canvas immediately
+    const name = `ivr_${Date.now()}`;
+    setIvrs((d: Record<string, any>) => ({ ...d, [name]: {} }));
+    setCanvasIvr(name);
   };
 
   const handleEdit = (name: string) => {
-    setShowList(false);
+    setCanvasIvr(name);
   };
 
   const handleDeleteIvr = async (name: string) => {
@@ -131,37 +134,36 @@ const IVRPage: React.FC = () => {
     return list;
   }, [ivrNames, ivrs, searchQuery, sortBy]);
 
-  // Show the IVR editor directly (like the IVRBuilder design)
-  if (!showList) {
+  // Show IVR canvas editor (like WorkflowsPage)
+  if (canvasIvr !== null) {
+    const ivrData = ivrs[canvasIvr] || {};
     return (
       <IVRCanvas
-        name="new-ivr"
-        initialData={{ flow: { nodes: {}, rootHead: null }, status: 'draft' }}
+        key={canvasIvr}  // Force remount on name change
+        name={canvasIvr}
+        initialData={ivrData}
         allAgents={['services', 'offers', 'meetings', 'support', 'other']}
         onSave={async (data) => {
-          // Create new IVR with a generated name
-          const timestamp = Date.now();
-          const name = `ivr-${timestamp}`;
+          const name = canvasIvr;
           try {
             await axios.put(`/api/ivrs/${name}`, {
               name,
-              description: '',
-              languages: ['en'],
-              routes: {},
-              greeting_audio: {},
+              description: ivrData.description || '',
+              languages: ivrData.languages || ['en'],
+              routes: ivrData.routes || {},
+              greeting_audio: ivrData.greeting_audio || {},
               flow: data.flow,
               status: data.status,
             });
-            toast.success('IVR created!');
+            toast.success('IVR saved!');
             fetchIvrs();
-            setShowList(true);
           } catch (err: any) {
-            toast.error(err.response?.data?.detail || 'Failed to create IVR');
+            toast.error(err.response?.data?.detail || 'Failed to save IVR');
           }
         }}
         onBack={() => {
+          setCanvasIvr(null);
           fetchIvrs();
-          setShowList(true);
         }}
       />
     );
