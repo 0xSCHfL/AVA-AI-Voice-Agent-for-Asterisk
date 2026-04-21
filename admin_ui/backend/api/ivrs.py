@@ -80,7 +80,9 @@ async def get_ivr(name: str):
 @router.put("/ivrs/{name}", response_model=IVRGetResponse)
 async def put_ivr(name: str, req: IVRPutRequest):
     """Create or update an IVR flow."""
-    ivrs = _get_ivrs_from_config()
+    # Read current merged config
+    merged = config_api._read_merged_config_dict()
+    ivrs = merged.get("ivrs", {})
 
     # Validate languages
     valid_langs = {"en", "fr", "nl", "lu", "es", "de", "pt"}
@@ -102,17 +104,42 @@ async def put_ivr(name: str, req: IVRPutRequest):
         "status": req.status if req.status is not None else existing.get("status", "draft"),
     }
 
-    config_api._save_field_to_config("ivrs", ivrs)
+    merged["ivrs"] = ivrs
+
+    # Compute minimal local override
+    base = config_api._read_base_config_dict()
+    override = config_api._compute_local_override(base, merged)
+
+    # Write to local config
+    import yaml
+    content = yaml.dump(override, default_flow_style=False, sort_keys=False)
+    config_api._write_local_config(content)
+
+    logger.info(f"IVR saved: {name}")
     return ivrs[name]
 
 
 @router.delete("/ivrs/{name}")
 async def delete_ivr(name: str):
     """Delete an IVR flow."""
-    ivrs = _get_ivrs_from_config()
+    # Read current merged config
+    merged = config_api._read_merged_config_dict()
+    ivrs = merged.get("ivrs", {})
+
     if name not in ivrs:
         raise HTTPException(status_code=404, detail=f"IVR '{name}' not found")
 
     del ivrs[name]
-    config_api._save_field_to_config("ivrs", ivrs)
+    merged["ivrs"] = ivrs
+
+    # Compute minimal local override
+    base = config_api._read_base_config_dict()
+    override = config_api._compute_local_override(base, merged)
+
+    # Write to local config
+    import yaml
+    content = yaml.dump(override, default_flow_style=False, sort_keys=False)
+    config_api._write_local_config(content)
+
+    logger.info(f"IVR deleted: {name}")
     return {"status": "ok"}
