@@ -467,34 +467,33 @@ function ConfigPanel({
 }) {
   const m = NODE_META[node.type];
   return (
-    <div className="w-80 border-l border-border bg-card h-full flex flex-col shadow-xl">
-      <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-        <div className="flex items-center gap-2">
+    <div style={{ width: 320, borderLeft: '1px solid #111a26', background: '#0d1520', height: '100%', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 64px #000e' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid #111a26' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span
-            className="w-8 h-8 rounded-lg flex items-center justify-center"
-            style={{ background: `${m.color}20` }}
+            style={{ width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: `${m.color}20` }}
           >
             <span style={{ color: m.color }}>{m.icon}</span>
           </span>
-          <span className="font-semibold">{m.label}</span>
+          <span style={{ fontWeight: 600, color: '#e2e8f0', fontSize: 13 }}>{m.label}</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <button
             onClick={onDelete}
-            className="text-xs text-destructive hover:text-destructive/80 font-medium"
+            style={{ fontSize: 11, color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}
           >
             Delete
           </button>
           <button
             onClick={onClose}
-            className="text-muted-foreground hover:text-foreground text-xl leading-none"
+            style={{ color: '#475569', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}
           >
             ×
           </button>
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto px-5 py-5">
-        <div className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-4">
+      <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 16 }}>
           Settings
         </div>
         {node.type === 'hours' && <HoursPanel node={node} onChange={onChange} />}
@@ -823,73 +822,46 @@ export default function IVRCanvas({
   const selectedNode = selectedId ? flow.nodes[selectedId] : null;
 
   return (
-    <div className="flex flex-col h-full bg-muted/30 font-sans overflow-hidden">
+    <div style={{ position: 'fixed', inset: 0, background: '#080d14', zIndex: 1000, display: 'flex', flexDirection: 'column', fontFamily: "'IBM Plex Mono', monospace" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+        * { box-sizing: border-box; }
+      `}</style>
       {/* Top navbar */}
-      <header className="flex items-center justify-between px-5 py-3 bg-card border-b border-border shadow-sm flex-shrink-0">
-        <div className="flex items-center gap-4">
+      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', height: 52, flexShrink: 0, background: '#080d14', borderBottom: '1px solid #111a26' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <button
             onClick={onBack}
-            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            style={{ background: '#0d1520', border: '1px solid #1e2d3d', borderRadius: 7, cursor: 'pointer', color: '#475569', padding: '6px 10px', fontSize: 18, lineHeight: 1, display: 'flex', alignItems: 'center' }}
           >
-            <X className="w-4 h-4" />
-            <span>Back to IVRs</span>
+            ←
           </button>
-          <div className="w-px h-5 bg-border" />
-          <div className="flex items-center gap-1">
-            <button
-              className="w-8 h-8 rounded-lg hover:bg-accent flex items-center justify-center text-muted-foreground transition-colors"
-              title="Undo"
-            >
-              <Undo2 className="w-4 h-4" />
-            </button>
-            <button
-              className="w-8 h-8 rounded-lg hover:bg-accent flex items-center justify-center text-muted-foreground transition-colors"
-              title="Redo"
-            >
-              <Redo2 className="w-4 h-4" />
-            </button>
-          </div>
+          <span style={{ color: '#e2e8f0', fontSize: 13, fontWeight: 600 }}>{name}</span>
         </div>
-        <span className="text-sm font-semibold tracking-tight">
-          {name} - IVR Editor
-        </span>
-        <div className="flex items-center gap-2">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <button
             onClick={handleSave}
             disabled={saving}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 7, background: saving ? '#0d1520' : '#10b981', border: 'none', cursor: saving ? 'not-allowed' : 'pointer', color: 'white', fontSize: 12, fontWeight: 500 }}
           >
-            {saving ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Save className="w-4 h-4" />
-            )}
-            Save
+            {saving ? 'Saving...' : 'Save'}
           </button>
           <button
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              status === 'published'
-                ? 'bg-green-100 text-green-700 border border-green-200'
-                : 'bg-muted text-muted-foreground'
-            }`}
             onClick={() => setStatus(s => (s === 'draft' ? 'published' : 'draft'))}
+            style={{ padding: '6px 12px', borderRadius: 7, background: status === 'published' ? '#10b98120' : '#0d1520', border: status === 'published' ? '1px solid #10b981' : '1px solid #1e2d3d', cursor: 'pointer', color: status === 'published' ? '#10b981' : '#475569', fontSize: 12, fontWeight: 500 }}
           >
-            {status === 'published' ? (
-              <Check className="w-4 h-4" />
-            ) : null}
             {status === 'published' ? 'Published' : 'Draft'}
           </button>
         </div>
       </header>
 
       {/* Canvas + side panel row */}
-      <div className="flex flex-1 overflow-hidden">
-        <div className="flex-1 overflow-auto flex flex-col items-center pt-12 pb-32 px-8 min-w-0">
-          <div className="flex flex-col items-center">
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+        <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 48, paddingBottom: 100, paddingX: 32 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             {/* Incoming call */}
             <div
-              className="flex items-center gap-2 px-5 py-2.5 rounded-full text-white text-sm font-semibold shadow-lg"
-              style={{ background: '#1e293b' }}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', borderRadius: 20, background: '#1e293b', color: 'white', fontSize: 13, fontWeight: 600 }}
             >
               <Phone className="w-4 h-4" />
               Incoming Call
@@ -925,12 +897,12 @@ export default function IVRCanvas({
           </div>
 
           {/* Zoom controls */}
-          <div className="fixed bottom-6 left-6 flex items-center gap-2 bg-card border border-border rounded-lg shadow px-3 py-1.5">
-            <button className="text-muted-foreground hover:text-foreground text-lg">−</button>
-            <span className="text-xs text-muted-foreground font-medium w-9 text-center">100%</span>
-            <button className="text-muted-foreground hover:text-foreground text-lg">+</button>
-            <span className="text-border mx-1">|</span>
-            <button className="text-muted-foreground hover:text-foreground text-sm">⛶</button>
+          <div style={{ position: 'fixed', bottom: 24, left: 24, display: 'flex', alignItems: 'center', gap: 8, background: '#0d1520', border: '1px solid #1e2d3d', borderRadius: 10, padding: '6px 12px' }}>
+            <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#475569', fontSize: 16 }}>−</button>
+            <span style={{ color: '#475569', fontSize: 11, fontWeight: 500, width: 36, textAlign: 'center' }}>100%</span>
+            <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#475569', fontSize: 16 }}>+</button>
+            <span style={{ color: '#1e2d3d', margin: '0 4px' }}>|</span>
+            <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#475569', fontSize: 12 }}>⛶</button>
           </div>
         </div>
 
