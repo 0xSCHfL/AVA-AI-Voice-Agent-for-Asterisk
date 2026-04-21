@@ -141,6 +141,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false }) => {
                     {canAccess('/pipelines') ? <SidebarItem to="/pipelines" icon={Workflow} label="Pipelines" isCollapsed={isCollapsed} /> : null}
                     {canAccess('/contexts') ? <SidebarItem to="/contexts" icon={MessageSquare} label="Contexts" isCollapsed={isCollapsed} /> : null}
                     {canAccess('/workflows') ? <SidebarItem to="/workflows" icon={GitBranch} label="Workflows" isCollapsed={isCollapsed} /> : null}
+                    {canAccess('/ivrs') ? <SidebarItem to="/ivrs" icon={Phone} label="IVRs" isCollapsed={isCollapsed} /> : null}
                     {canAccess('/profiles') ? <SidebarItem to="/profiles" icon={Sliders} label="Profiles" isCollapsed={isCollapsed} /> : null}
                     {canAccess('/tools') ? <SidebarItem to="/tools" icon={Wrench} label="Tools" isCollapsed={isCollapsed} /> : null}
                     {canAccess('/mcp') ? <SidebarItem to="/mcp" icon={Plug} label="MCP Servers" isCollapsed={isCollapsed} /> : null}

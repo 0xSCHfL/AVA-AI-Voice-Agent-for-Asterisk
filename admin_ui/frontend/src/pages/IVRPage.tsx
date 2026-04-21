@@ -1,0 +1,431 @@
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import axios from 'axios';
+import { toast } from 'sonner';
+import {
+  Plus, Trash2, Search, MoreVertical,
+  Loader2, Phone, ChevronDown, Pencil, Copy as CopyIcon,
+  ArrowUpDown, Clock, X, Languages, Globe, Edit,
+  ChevronRight, ArrowLeft
+} from 'lucide-react';
+import IVRCanvas from '../components/IVRCanvas';
+
+type SortOption = 'name_asc' | 'name_desc' | 'created_desc' | 'created_asc';
+
+const SORT_OPTIONS: { value: SortOption; label: string }[] = [
+  { value: 'name_asc', label: 'Name (A-Z)' },
+  { value: 'name_desc', label: 'Name (Z-A)' },
+  { value: 'created_desc', label: 'Recently Created' },
+  { value: 'created_asc', label: 'Oldest First' },
+];
+
+const LANGUAGES = [
+  { code: 'en', label: 'English', flag: '🇬🇧' },
+  { code: 'fr', label: 'French', flag: '🇫🇷' },
+  { code: 'nl', label: 'Dutch', flag: '🇳🇱' },
+  { code: 'lu', label: 'Luxembourgish', flag: '🇱🇺' },
+  { code: 'es', label: 'Spanish', flag: '🇪🇸' },
+  { code: 'de', label: 'German', flag: '🇩🇪' },
+  { code: 'pt', label: 'Portuguese', flag: '🇵🇹' },
+];
+
+const IVRPage: React.FC = () => {
+  const [ivrs, setIvrs] = useState<Record<string, any>>({});
+  const [ivrNames, setIvrNames] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState<SortOption>('created_desc');
+  const [menuOpen, setMenuOpen] = useState<string | null>(null);
+  const [sortMenuOpen, setSortMenuOpen] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editingIvr, setEditingIvr] = useState<string | null>(null);
+  const [newIvrName, setNewIvrName] = useState('');
+  const [newIvrDescription, setNewIvrDescription] = useState('');
+  const [newIvrLanguages, setNewIvrLanguages] = useState<string[]>(['en']);
+  const sortMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { fetchIvrs(); }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (sortMenuRef.current && !sortMenuRef.current.contains(e.target as Node)) {
+        setSortMenuOpen(false);
+        setMenuOpen(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const fetchIvrs = async () => {
+    try {
+      const res = await axios.get('/api/ivrs');
+      const names = res.data.ivrs || [];
+      setIvrNames(names);
+      const data: Record<string, any> = {};
+      await Promise.all(names.map(async (name: string) => {
+        try {
+          const r = await axios.get(`/api/ivrs/${name}`);
+          data[name] = r.data;
+        } catch { }
+      }));
+      setIvrs(data);
+    } catch {
+      toast.error('Failed to load IVRs');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateIvr = async () => {
+    if (!newIvrName.trim()) {
+      toast.error('IVR name is required');
+      return;
+    }
+    if (ivrNames.includes(newIvrName)) {
+      toast.error('IVR name already exists');
+      return;
+    }
+    try {
+      await axios.put(`/api/ivrs/${newIvrName}`, {
+        name: newIvrName,
+        description: newIvrDescription,
+        languages: newIvrLanguages,
+        routes: {},
+        greeting_audio: {},
+        flow: { nodes: {}, rootHead: null },
+        status: 'draft',
+      });
+      toast.success('IVR created!');
+      setShowCreateModal(false);
+      setNewIvrName('');
+      setNewIvrDescription('');
+      setNewIvrLanguages(['en']);
+      fetchIvrs();
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || 'Failed to create IVR');
+    }
+  };
+
+  const handleDeleteIvr = async (name: string) => {
+    if (!confirm(`Delete IVR "${name}"?`)) return;
+    try {
+      await axios.delete(`/api/ivrs/${name}`);
+      toast.success('IVR deleted');
+      setMenuOpen(null);
+      fetchIvrs();
+    } catch {
+      toast.error('Failed to delete IVR');
+    }
+  };
+
+  const handleDuplicateIvr = async (name: string) => {
+    const data = ivrs[name];
+    if (!data) return;
+    let newName = `${name}_copy`;
+    let counter = 1;
+    while (ivrNames.includes(newName)) {
+      counter++;
+      newName = `${name}_copy_${counter}`;
+    }
+    try {
+      await axios.put(`/api/ivrs/${newName}`, { ...data, name: newName });
+      toast.success('IVR duplicated');
+      setMenuOpen(null);
+      fetchIvrs();
+    } catch {
+      toast.error('Failed to duplicate IVR');
+    }
+  };
+
+  const handleSaveIvr = async (name: string, data: any) => {
+    const ivr = ivrs[name] || {};
+    await axios.put(`/api/ivrs/${name}`, {
+      ...ivr,
+      name,
+      flow: data.flow,
+      status: data.status,
+    });
+  };
+
+  const filteredIvrs = useMemo(() => {
+    let list = ivrNames.map(name => ({ name, ...ivrs[name] }));
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter(i =>
+        i.name?.toLowerCase().includes(q) ||
+        i.description?.toLowerCase().includes(q)
+      );
+    }
+    list.sort((a, b) => {
+      switch (sortBy) {
+        case 'name_asc': return (a.name || '').localeCompare(b.name || '');
+        case 'name_desc': return (b.name || '').localeCompare(a.name || '');
+        case 'created_desc': return ((b.created_at || '') > (a.created_at || '')) ? 1 : -1;
+        case 'created_asc': return ((a.created_at || '') > (b.created_at || '')) ? 1 : -1;
+        default: return 0;
+      }
+    });
+    return list;
+  }, [ivrNames, ivrs, searchQuery, sortBy]);
+
+  const getLanguageFlags = (codes: string[]) => {
+    return codes.map(c => LANGUAGES.find(l => l.code === c)?.flag || c).join(' ');
+  };
+
+  const getLanguageLabels = (codes: string[]) => {
+    return codes.map(c => LANGUAGES.find(l => l.code === c)?.label || c).join(', ');
+  };
+
+  // If editing an IVR, show the canvas
+  if (editingIvr) {
+    return (
+      <IVRCanvas
+        name={editingIvr}
+        initialData={ivrs[editingIvr]}
+        allAgents={['services', 'offers', 'meetings', 'support', 'other']}
+        onSave={(data) => handleSaveIvr(editingIvr, data)}
+        onBack={() => { setEditingIvr(null); fetchIvrs(); }}
+      />
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6 space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">IVR Flows</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Create multi-language IVR flows for call routing
+          </p>
+        </div>
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+        >
+          <Plus className="w-4 h-4" />
+          Create IVR
+        </button>
+      </div>
+
+      {/* Filters */}
+      <div className="flex items-center gap-4">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Search IVRs..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 rounded-md border border-input bg-background text-sm"
+          />
+        </div>
+        <div className="relative" ref={sortMenuRef}>
+          <button
+            onClick={() => setSortMenuOpen(!sortMenuOpen)}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-input bg-background text-sm hover:bg-accent transition-colors"
+          >
+            <ArrowUpDown className="w-4 h-4" />
+            Sort
+            <ChevronDown className="w-4 h-4" />
+          </button>
+          {sortMenuOpen && (
+            <div className="absolute right-0 mt-2 w-48 rounded-md border bg-popover shadow-lg z-50 py-1">
+              {SORT_OPTIONS.map(opt => (
+                <button
+                  key={opt.value}
+                  onClick={() => { setSortBy(opt.value); setSortMenuOpen(false); }}
+                  className={`w-full px-3 py-2 text-left text-sm hover:bg-accent ${sortBy === opt.value ? 'text-primary' : ''}`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* IVR List */}
+      {filteredIvrs.length === 0 ? (
+        <div className="flex flex-col items-center justify-center h-64 rounded-lg border border-dashed">
+          <Phone className="w-12 h-12 text-muted-foreground mb-4" />
+          <h3 className="text-lg font-medium mb-1">No IVRs yet</h3>
+          <p className="text-sm text-muted-foreground mb-4">Create your first IVR flow to get started</p>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Create IVR
+          </button>
+        </div>
+      ) : (
+        <div className="rounded-lg border">
+          <div className="grid grid-cols-1 gap-4 p-4">
+            {filteredIvrs.map((ivr) => (
+              <div
+                key={ivr.name}
+                className="flex items-center justify-between p-4 rounded-lg bg-card hover:bg-accent/50 transition-colors"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                    <Phone className="w-5 h-5 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="font-medium">{ivr.name}</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {ivr.description || 'No description'}
+                    </p>
+                    <div className="flex items-center gap-4 mt-2">
+                      <span className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Languages className="w-3 h-3" />
+                        {getLanguageFlags(ivr.languages || ['en'])}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {getLanguageLabels(ivr.languages || ['en'])}
+                      </span>
+                      {ivr.status && (
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${
+                          ivr.status === 'published'
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-muted text-muted-foreground'
+                        }`}>
+                          {ivr.status}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setEditingIvr(ivr.name)}
+                    className="p-2 rounded-md hover:bg-accent transition-colors"
+                    title="Edit"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => handleDuplicateIvr(ivr.name)}
+                    className="p-2 rounded-md hover:bg-accent transition-colors"
+                    title="Duplicate"
+                  >
+                    <CopyIcon className="w-4 h-4" />
+                  </button>
+                  <div className="relative">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setMenuOpen(menuOpen === ivr.name ? null : ivr.name); }}
+                      className="p-2 rounded-md hover:bg-accent transition-colors"
+                    >
+                      <MoreVertical className="w-4 h-4" />
+                    </button>
+                    {menuOpen === ivr.name && (
+                      <div className="absolute right-0 mt-2 w-40 rounded-md border bg-popover shadow-lg z-50 py-1">
+                        <button
+                          onClick={() => { setEditingIvr(ivr.name); setMenuOpen(null); }}
+                          className="w-full px-3 py-2 text-left text-sm flex items-center gap-2 hover:bg-accent"
+                        >
+                          <Edit className="w-4 h-4" /> Edit
+                        </button>
+                        <button
+                          onClick={() => handleDeleteIvr(ivr.name)}
+                          className="w-full px-3 py-2 text-left text-sm flex items-center gap-2 text-destructive hover:bg-destructive/10"
+                        >
+                          <Trash2 className="w-4 h-4" /> Delete
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Create Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-card rounded-lg border shadow-lg w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-semibold">Create IVR Flow</h2>
+              <button onClick={() => setShowCreateModal(false)} className="p-1 rounded hover:bg-accent">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">IVR Name</label>
+                <input
+                  type="text"
+                  value={newIvrName}
+                  onChange={e => setNewIvrName(e.target.value)}
+                  placeholder="main-ivr"
+                  className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Description</label>
+                <input
+                  type="text"
+                  value={newIvrDescription}
+                  onChange={e => setNewIvrDescription(e.target.value)}
+                  placeholder="Main IVR for customer service"
+                  className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Languages</label>
+                <div className="flex flex-wrap gap-2">
+                  {LANGUAGES.map(lang => (
+                    <button
+                      key={lang.code}
+                      onClick={() => {
+                        if (newIvrLanguages.includes(lang.code)) {
+                          setNewIvrLanguages(newIvrLanguages.filter(l => l !== lang.code));
+                        } else {
+                          setNewIvrLanguages([...newIvrLanguages, lang.code]);
+                        }
+                      }}
+                      className={`px-3 py-1 rounded-full border text-sm flex items-center gap-1 transition-colors ${
+                        newIvrLanguages.includes(lang.code)
+                          ? 'bg-primary text-primary-foreground border-primary'
+                          : 'bg-background hover:bg-accent'
+                      }`}
+                    >
+                      <span>{lang.flag}</span>
+                      <span>{lang.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => setShowCreateModal(false)}
+                className="px-4 py-2 rounded-md border text-sm font-medium hover:bg-accent transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateIvr}
+                className="px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+              >
+                Create
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default IVRPage;
