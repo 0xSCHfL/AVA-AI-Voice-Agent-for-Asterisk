@@ -78,29 +78,25 @@ const IVRPage: React.FC = () => {
 
   const handleCreateIvr = async () => {
     if (!newIvrName.trim()) {
-      toast.error('IVR name is required');
-      return;
+      setNewIvrName('new-ivr');
     }
-    if (ivrNames.includes(newIvrName)) {
-      toast.error('IVR name already exists');
-      return;
-    }
+    const name = newIvrName.trim() || 'new-ivr';
     try {
-      await axios.put(`/api/ivrs/${newIvrName}`, {
-        name: newIvrName,
-        description: newIvrDescription,
-        languages: newIvrLanguages,
+      await axios.put(`/api/ivrs/${name}`, {
+        name,
+        description: '',
+        languages: ['en'],
         routes: {},
         greeting_audio: {},
         flow: { nodes: {}, rootHead: null },
         status: 'draft',
       });
-      toast.success('IVR created!');
       setShowCreateModal(false);
       setNewIvrName('');
       setNewIvrDescription('');
       setNewIvrLanguages(['en']);
       fetchIvrs();
+      setEditingIvr(name);
     } catch (err: any) {
       toast.error(err.response?.data?.detail || 'Failed to create IVR');
     }
@@ -350,80 +346,7 @@ const IVRPage: React.FC = () => {
         </div>
       )}
 
-      {/* Create Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-card rounded-lg border shadow-lg w-full max-w-md p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-semibold">Create IVR Flow</h2>
-              <button onClick={() => setShowCreateModal(false)} className="p-1 rounded hover:bg-accent">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">IVR Name</label>
-                <input
-                  type="text"
-                  value={newIvrName}
-                  onChange={e => setNewIvrName(e.target.value)}
-                  placeholder="main-ivr"
-                  className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Description</label>
-                <input
-                  type="text"
-                  value={newIvrDescription}
-                  onChange={e => setNewIvrDescription(e.target.value)}
-                  placeholder="Main IVR for customer service"
-                  className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Languages</label>
-                <div className="flex flex-wrap gap-2">
-                  {LANGUAGES.map(lang => (
-                    <button
-                      key={lang.code}
-                      onClick={() => {
-                        if (newIvrLanguages.includes(lang.code)) {
-                          setNewIvrLanguages(newIvrLanguages.filter(l => l !== lang.code));
-                        } else {
-                          setNewIvrLanguages([...newIvrLanguages, lang.code]);
-                        }
-                      }}
-                      className={`px-3 py-1 rounded-full border text-sm flex items-center gap-1 transition-colors ${
-                        newIvrLanguages.includes(lang.code)
-                          ? 'bg-primary text-primary-foreground border-primary'
-                          : 'bg-background hover:bg-accent'
-                      }`}
-                    >
-                      <span>{lang.flag}</span>
-                      <span>{lang.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <div className="flex justify-end gap-3 mt-6">
-              <button
-                onClick={() => setShowCreateModal(false)}
-                className="px-4 py-2 rounded-md border text-sm font-medium hover:bg-accent transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCreateIvr}
-                className="px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
-              >
-                Create
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Create Modal - simplified, just name input then opens editor */}
     </div>
   );
 };
