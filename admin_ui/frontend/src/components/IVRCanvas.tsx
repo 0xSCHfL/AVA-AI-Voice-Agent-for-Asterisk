@@ -2,17 +2,21 @@ import React, { useState, useCallback, useEffect } from 'react';
 import {
   Undo2, Redo2, Loader2,
   X, Save, Check, Phone, Clock,
-  Calendar, Key, Trash2, Copy
+  Calendar, Key, Trash2, Copy,
+  ChevronUp, ChevronDown, ChevronRight,
+  Upload, FileAudio, CheckCircle2, ExternalLink,
+  Volume2, Mic, File, UserCheck
 } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type NodeType = 'hours' | 'date' | 'dtmf' | 'action';
+type NodeType = 'hours' | 'date' | 'dtmf' | 'svi_audio' | 'redirect' | 'action';
 
 interface Branch {
   id: string;
   label: string;
   route?: string;
+  dtmfDigit?: string;
 }
 
 interface IVRNode {
@@ -24,6 +28,12 @@ interface IVRNode {
   branches: Branch[];
   inviteMessage?: string;
   inviteLanguage?: string;
+  audioUrl?: string;
+  audioType?: 'synthesized' | 'file' | 'recording';
+  agentId?: string;
+  agentName?: string;
+  timeout?: number;
+  retryMessage?: string;
   children: (string | null)[];
   next: string | null;
 }
@@ -56,6 +66,20 @@ const NODE_META: Record<NodeType, { label: string; icon: React.ReactNode; desc: 
     desc: 'Touch-tone menu selection',
     color: '#0d9488',
     borderColor: '#0d9488',
+  },
+  svi_audio: {
+    label: 'Audio SVI',
+    icon: <Volume2 className="w-4 h-4" />,
+    desc: 'Play audio and collect DTMF',
+    color: '#108A85',
+    borderColor: '#108A85',
+  },
+  redirect: {
+    label: 'Redirect',
+    icon: <UserCheck className="w-4 h-4" />,
+    desc: 'Redirect to AI agent',
+    color: '#7c3aed',
+    borderColor: '#7c3aed',
   },
   action: {
     label: 'Action',
@@ -99,6 +123,26 @@ function makeNode(type: NodeType): IVRNode {
   if (type === 'date') {
     return { ...base, branches: [], dateTimezone: 'Europe/Brussels' };
   }
+  if (type === 'svi_audio') {
+    return {
+      ...base,
+      branches: [{ id: uid(), label: 'Option 1', dtmfDigit: '1' }],
+      audioType: 'file',
+      audioUrl: '',
+      inviteLanguage: 'en',
+      timeout: 5,
+      retryMessage: '',
+    };
+  }
+  if (type === 'redirect') {
+    return {
+      ...base,
+      agentId: '',
+      agentName: '',
+      inviteMessage: '',
+      timeout: 30,
+    };
+  }
   return {
     ...base,
     branches: [{ id: uid(), label: 'Option 1' }],
@@ -113,6 +157,12 @@ function getBranchLabels(node: IVRNode): string[] {
   }
   if (node.type === 'date') {
     return ['Normal date', 'No special date'];
+  }
+  if (node.type === 'svi_audio') {
+    return [
+      ...(node.branches?.map(b => `${b.dtmfDigit || ''} - ${b.label}`) || []),
+      'Invalid / Timeout',
+    ];
   }
   return [
     ...(node.branches?.map(b => b.label) || []),
@@ -465,10 +515,331 @@ function DTMFPanel({ node, onChange }: { node: IVRNode; onChange: (p: Partial<IV
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// SVI Panel — Professional SVI audio node configuration sidebar
+// ─────────────────────────────────────────────────────────────────────────────
+
+const AUDIO_TYPES = [
+  {
+    value: 'synthesized',
+    label: 'Synthèse vocale',
+    icon: <Volume2 className="w-4 h-4" />,
+    desc: 'Convertir un texte en audio avec l’IA',
+  },
+  {
+    value: 'file',
+    label: 'Fichier personnalisé',
+    icon: <File className="w-4 h-4" />,
+    desc: 'Utiliser un fichier audio (.mp3, .wav)',
+  },
+  {
+    value: 'recording',
+    label: 'Enregistrement audio',
+    icon: <Mic className="w-4 h-4" />,
+    desc: 'Enregistrer directement dans le navigateur',
+  },
+];
+
+function SVIPanel({ node, onChange }: { node: IVRNode; onChange: (p: Partial<IVRNode>) => void }) {
+  const [messageAccordionOpen, setMessageAccordionOpen] = useState(true);
+  const [retryAccordionOpen, setRetryAccordionOpen] = useState(false);
+  const [audioTypeOpen, setAudioTypeOpen] = useState(true);
+  const [selectedAudioType, setSelectedAudioType] = useState(node.audioType || 'file');
+
+  const handleAudioTypeChange = (type: 'synthesized' | 'file' | 'recording') => {
+    setSelectedAudioType(type);
+    onChange({ audioType: type });
+  };
+
+  const addDTMFOption = () => {
+    const nextDigit = String((node.branches?.length || 0) + 1);
+    onChange({
+      branches: [...(node.branches || []), { id: uid(), label: `Option ${nextDigit}`, dtmfDigit: nextDigit }],
+    });
+  };
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="flex-1 overflow-y-auto px-4 py-5 space-y-3">
+
+        {/* ── Accordion 1: Message d'invite ── */}
+        <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+          {/* Header */}
+          <button
+            onClick={() => setMessageAccordionOpen(o => !o)}
+            className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-gray-50 transition-colors"
+          >
+            <span className="text-sm font-bold text-gray-900">Message d'invite</span>
+            <ChevronUp className={`w-4 h-4 text-gray-400 transition-transform ${messageAccordionOpen ? '' : '-rotate-180'}`} />
+          </button>
+
+          {messageAccordionOpen && (
+            <div className="px-4 pb-4 space-y-4">
+              {/* Helper text */}
+              <p className="text-xs text-gray-500 leading-relaxed">
+                Créez un message pour indiquer à l'appelant quelle option sélectionner.
+              </p>
+
+              {/* Type de message dropdown */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">Type de message</label>
+                <div className="relative">
+                  {/* Dropdown trigger */}
+                  <button
+                    onClick={() => setAudioTypeOpen(o => !o)}
+                    className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg border border-gray-200 bg-white text-sm text-left hover:border-gray-300 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-900">
+                        {AUDIO_TYPES.find(t => t.value === selectedAudioType)?.label || 'Fichier personnalisé'}
+                      </span>
+                    </div>
+                    <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${audioTypeOpen ? '' : '-rotate-180'}`} />
+                  </button>
+
+                  {/* Dropdown list — always visible when open */}
+                  {audioTypeOpen && (
+                    <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-white rounded-xl border border-gray-200 shadow-xl overflow-hidden">
+                      {AUDIO_TYPES.map(type => (
+                        <button
+                          key={type.value}
+                          onClick={() => { handleAudioTypeChange(type.value as any); setAudioTypeOpen(false); }}
+                          className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 transition-colors text-left"
+                        >
+                          <span style={{ color: '#108A85' }}>{type.icon}</span>
+                          <div className="flex-1">
+                            <div className="text-sm font-medium text-gray-900">{type.label}</div>
+                            <div className="text-xs text-gray-400">{type.desc}</div>
+                          </div>
+                          {selectedAudioType === type.value && (
+                            <CheckCircle2 className="w-4 h-4 flex-shrink-0" style={{ color: '#108A85' }} />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Synthesized: text input */}
+              {selectedAudioType === 'synthesized' && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Texte du message</label>
+                  <textarea
+                    className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-teal-400"
+                    rows={3}
+                    value={node.inviteMessage || ''}
+                    onChange={e => onChange({ inviteMessage: e.target.value })}
+                    placeholder="Bienvenue, merci de sélectionner une option..."
+                  />
+                  <div className="mt-2">
+                    <label className="block text-xs text-gray-500 mb-1">Langue</label>
+                    <select
+                      className="w-full rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-teal-400"
+                      value={node.inviteLanguage || 'fr'}
+                      onChange={e => onChange({ inviteLanguage: e.target.value })}
+                    >
+                      {LANGUAGES.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {/* File upload zone */}
+              {selectedAudioType === 'file' && (
+                <div>
+                  <div
+                    className="border-2 border-dashed border-gray-200 rounded-xl p-6 flex flex-col items-center justify-center text-center cursor-pointer hover:border-gray-300 hover:bg-gray-50 transition-colors"
+                    onClick={() => {
+                      const input = document.createElement('input');
+                      input.type = 'file';
+                      input.accept = '.mp3,.wav,.ogg';
+                      input.onchange = (e: any) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          onChange({ audioUrl: file.name, inviteMessage: file.name });
+                        }
+                      };
+                      input.click();
+                    }}
+                  >
+                    {node.audioUrl ? (
+                      <>
+                        <FileAudio className="w-8 h-8 text-gray-400 mb-2" />
+                        <p className="text-sm font-medium text-gray-700 mb-1">{node.inviteMessage || 'Fichier chargé'}</p>
+                        <p className="text-xs text-gray-400">Cliquez pour remplacer</p>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-8 h-8 text-gray-300 mb-2" />
+                        <p className="text-sm font-medium text-gray-500 mb-1">Déposez votre fichier, ou cliquez pour télécharger</p>
+                        <p className="text-xs text-gray-400">Tout fichier .mp3, 10 Mo maximum</p>
+                      </>
+                    )}
+                  </div>
+                  {node.audioUrl && (
+                    <button
+                      onClick={() => onChange({ audioUrl: '', inviteMessage: '' })}
+                      className="mt-2 text-xs text-red-500 hover:text-red-700"
+                    >
+                      Supprimer le fichier
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Recording: record button */}
+              {selectedAudioType === 'recording' && (
+                <div className="flex flex-col items-center py-4">
+                  <button className="w-16 h-16 rounded-full bg-red-100 hover:bg-red-200 flex items-center justify-center transition-colors mb-3">
+                    <Mic className="w-6 h-6 text-red-600" />
+                  </button>
+                  <p className="text-sm text-gray-500">Cliquez pour enregistrer</p>
+                  <p className="text-xs text-gray-400 mt-1">Max. 60 secondes</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* ── Accordion 2: DTMF Options ── */}
+        <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+          <button
+            onClick={() => setRetryAccordionOpen(o => !o)}
+            className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-gray-50 transition-colors"
+          >
+            <span className="text-sm font-bold text-gray-900">Options DTMF</span>
+            <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${retryAccordionOpen ? '' : '-rotate-180'}`} />
+          </button>
+
+          {retryAccordionOpen && (
+            <div className="px-4 pb-4 space-y-3">
+              <p className="text-xs text-gray-500 leading-relaxed">
+                Définissez les options que l'appelant peut sélectionner.
+              </p>
+
+              {/* DTMF options list */}
+              <div className="space-y-2">
+                {node.branches?.map((branch, i) => (
+                  <div key={branch.id} className="flex items-center gap-2">
+                    <span className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0" style={{ background: '#108A85' }}>
+                      {branch.dtmfDigit || i + 1}
+                    </span>
+                    <input
+                      className="flex-1 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+                      value={branch.label}
+                      onChange={e => {
+                        const updated = [...(node.branches || [])];
+                        updated[i] = { ...updated[i], label: e.target.value };
+                        onChange({ branches: updated });
+                      }}
+                      placeholder="Label de l'option..."
+                    />
+                    <button
+                      onClick={() => onChange({ branches: (node.branches || []).filter(b => b.id !== branch.id) })}
+                      className="w-7 h-7 rounded-md flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <button
+                onClick={addDTMFOption}
+                className="w-full border-2 border-dashed border-gray-200 rounded-lg py-2 text-sm text-gray-500 font-medium hover:border-gray-300 hover:text-gray-700 transition-colors"
+              >
+                + Ajouter une option
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* ── Accordion 3: Gestion des réessais ── */}
+        <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+          <button
+            onClick={() => setRetryAccordionOpen(o => !o)}
+            className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-gray-50 transition-colors"
+          >
+            <span className="text-sm font-bold text-gray-900">Gestion des réessais</span>
+            <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${retryAccordionOpen ? '' : '-rotate-180'}`} />
+          </button>
+
+          {retryAccordionOpen && (
+            <div className="px-4 pb-4 space-y-4">
+              <p className="text-xs text-gray-500 leading-relaxed">
+                Configurez une nouvelle tentative lorsqu'une saisie est invalide ou qu'il n'y a pas de réponse à temps.
+              </p>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">Message de recomposition</label>
+                <input
+                  className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+                  value={node.retryMessage || ''}
+                  onChange={e => onChange({ retryMessage: e.target.value })}
+                  placeholder="Appuyez sur une touche valide..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">Nombre de réessais</label>
+                <select className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
+                  <option>1 tentative</option>
+                  <option>2 tentatives</option>
+                  <option>3 tentatives</option>
+                </select>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Footer link */}
+      <div className="px-4 py-3 border-t border-gray-100">
+        <a
+          href="#"
+          className="flex items-center gap-1 text-xs font-medium hover:underline"
+          style={{ color: '#108A85' }}
+          onClick={e => e.preventDefault()}
+        >
+          En savoir plus sur SVI standard
+          <ExternalLink className="w-3 h-3" />
+        </a>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 function ConfigPanel({ node, onClose, onChange, onDelete, allAgents }: {
   node: IVRNode; onClose: () => void; onChange: (p: Partial<IVRNode>) => void; onDelete: () => void; allAgents?: string[];
 }) {
   const m = NODE_META[node.type];
+
+  // SVI Audio node uses its own full sidebar layout
+  if (node.type === 'svi_audio') {
+    return (
+      <div className="w-80 border-l border-gray-200 bg-white h-full flex flex-col shadow-xl overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `${m.color}18` }}>
+              <span style={{ color: m.color }}>{m.icon}</span>
+            </div>
+            <span className="font-semibold text-gray-900">{m.label}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={onDelete} className="text-xs text-red-600 hover:text-red-700 font-medium">Delete</button>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-xl leading-none">×</button>
+          </div>
+        </div>
+        <div className="flex-1 overflow-hidden">
+          <SVIPanel node={node} onChange={onChange} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="w-80 border-l border-gray-200 bg-white h-full flex flex-col shadow-xl">
       <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
@@ -488,6 +859,7 @@ function ConfigPanel({ node, onClose, onChange, onDelete, allAgents }: {
         {node.type === 'hours' && <HoursPanel node={node} onChange={onChange} />}
         {node.type === 'date' && <DatePanel node={node} onChange={onChange} />}
         {node.type === 'dtmf' && <DTMFPanel node={node} onChange={onChange} />}
+        {node.type === 'redirect' && <DTMFPanel node={node} onChange={onChange} />}
       </div>
     </div>
   );
