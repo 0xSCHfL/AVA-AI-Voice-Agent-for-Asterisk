@@ -559,11 +559,8 @@ function BranchSection({
                 onInsertBranchChild={onInsertBranchChild}
                 allAgents={allAgents}
               />
-              {/* End card */}
+              {/* End of branch path — connector leads to merge */}
               <VLine h={16} />
-              <ConnectorDot />
-              <VLine h={12} />
-              <ActionCard label="Terminer l'appel" />
             </div>
           );
         })}
