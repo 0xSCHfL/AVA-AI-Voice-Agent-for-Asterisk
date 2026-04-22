@@ -400,7 +400,7 @@ function DatePanel({ node, onChange }: { node: IVRNode; onChange: (p: Partial<IV
   );
 }
 
-function DTMFPanel({ node, onChange, allAgents }: { node: IVRNode; onChange: (p: Partial<IVRNode>) => void; allAgents?: string[] }) {
+function DTMFPanel({ node, onChange }: { node: IVRNode; onChange: (p: Partial<IVRNode>) => void }) {
   const addBranch = () => {
     const branches = [...(node.branches || []), { id: uid(), label: `Option ${(node.branches?.length || 0) + 1}` }];
     onChange({ branches });
@@ -487,7 +487,7 @@ function ConfigPanel({ node, onClose, onChange, onDelete, allAgents }: {
         <div className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-4">Settings</div>
         {node.type === 'hours' && <HoursPanel node={node} onChange={onChange} />}
         {node.type === 'date' && <DatePanel node={node} onChange={onChange} />}
-        {node.type === 'dtmf' && <DTMFPanel node={node} onChange={onChange} allAgents={allAgents} />}
+        {node.type === 'dtmf' && <DTMFPanel node={node} onChange={onChange} />}
       </div>
     </div>
   );
