@@ -5,11 +5,7 @@ import {
   ArrowLeft, Undo2, Redo2, ChevronDown, Loader2,
   Plus, X, Save, Check, Globe, Phone, Clock,
   Calendar, Key, Trash2, Copy, MoreVertical, Edit,
-<<<<<<< HEAD
-  ChevronRight
-=======
   ChevronRight, Play, Pause, Upload, Mic, FileAudio
->>>>>>> a1fae422 (feat(ivrs): implement IVR builder UI from reference design)
 } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
