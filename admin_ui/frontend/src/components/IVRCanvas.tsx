@@ -972,7 +972,6 @@ export default function IVRCanvas({
               End Call
             </div>
           </div>
-          </div>
 
           {/* Zoom controls */}
           <div className="fixed bottom-6 left-6 flex items-center gap-2 bg-card border border-border rounded-lg shadow px-3 py-1.5 z-10">
