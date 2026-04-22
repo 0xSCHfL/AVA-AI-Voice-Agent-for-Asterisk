@@ -774,8 +774,7 @@ function BranchSection({
           const childHead = nodeChildren[idx] ?? null;
           return (
             <div key={idx} style={{ width: colW, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-              <VLine h={16} />
-              {/* Branch chain */}
+              {/* Branch chain — starts directly with InsertionPoint, no extra VLine */}
               <ChainColumn
                 headId={childHead}
                 nodes={nodes}
@@ -787,22 +786,20 @@ function BranchSection({
                 onInsertBranchChild={onInsertBranchChild}
                 allAgents={allAgents}
               />
-              {/* End of branch path — connector leads to merge */}
-              <VLine h={16} />
             </div>
           );
         })}
       </div>
 
       {/* Merge SVG — lines converge from each column back to center */}
-      <svg width={totalW} height={20} style={{ display: 'block', flexShrink: 0 }}>
+      <svg width={totalW} height={16} style={{ display: 'block', flexShrink: 0 }}>
         {branchLabels.map((_, i) => {
           const x = i * (colW + gap) + colW / 2;
           if (Math.abs(x - cx) < 1) return null;
           return (
             <path
               key={i}
-              d={`M ${x} 0 L ${x} 6 Q ${x} 12 ${cx} 12 L ${cx} 20`}
+              d={`M ${x} 0 L ${x} 6 Q ${x} 12 ${cx} 12 L ${cx} 16`}
               fill="none"
               stroke="#0d9488"
               strokeWidth={2}
@@ -811,7 +808,7 @@ function BranchSection({
           );
         })}
       </svg>
-      <InsertionPoint onInsert={t => onInsertAfter(nodeId, t)} />
+      <ConnectorDot />
     </div>
   );
 }
@@ -857,7 +854,6 @@ function ChainColumn({
 
         return (
           <div key={nid} className="flex flex-col items-center">
-            <VLine h={14} />
             <InsertionPoint onInsert={onInsertAtHead} />
 
             <LogicNode
@@ -866,9 +862,6 @@ function ChainColumn({
               onClick={() => onSelect(nid)}
               onDelete={() => onDeleteNode(nid)}
             />
-
-            <VLine h={10} />
-            <InsertionPoint onInsert={t => onInsertAfter(nid, t)} />
 
             {hasBranches ? (
               <BranchSection
@@ -885,13 +878,13 @@ function ChainColumn({
               />
             ) : (
               <>
+                <VLine h={10} />
                 <InsertionPoint onInsert={t => onInsertAfter(nid, t)} />
                 {node.next && (() => {
                   const nextId = node.next;
                   return (
                   <>
                     <VLine h={14} />
-                    <InsertionPoint onInsert={t => onInsertAfter(nextId, t)} />
                     <LogicNode
                       node={nodes[nextId]}
                       isSelected={selectedId === nextId}
@@ -1120,11 +1113,11 @@ export default function IVRCanvas({
                 allAgents={allAgents}
               />
 
-              <VLine h={20} />
+              <VLine h={16} />
               {lastChainNodeId
                 ? <InsertionPoint onInsert={t => insertAfter(lastChainNodeId, t)} />
                 : <ConnectorDot />}
-              <VLine h={14} />
+              <VLine h={10} />
 
               {/* Root-level end */}
               <ActionCard label="Terminer l'appel" />
