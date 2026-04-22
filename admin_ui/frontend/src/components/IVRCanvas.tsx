@@ -210,51 +210,86 @@ function InsertDot({ onAdd, isTop = false }: { onAdd: (t: NodeType) => void; isT
 
 // ── SVG branch fork ───────────────────────────────────────────────────────────
 
-function BranchConnector({ count }: { count: number }) {
-  const totalWidth = count * COL_WIDTH + (count - 1) * COL_GAP;
-  const cx = totalWidth / 2;
-  const stemH = 20;
-  const barY = stemH;
-  const branchH = 24;
-  const svgH = stemH + branchH;
-  const r = 8;
-  const xs = Array.from(
-    { length: count },
-    (_, i) => i * (COL_WIDTH + COL_GAP) + COL_WIDTH / 2
-  );
+function BranchSection({
+  branchLabels,
+  nodeId,
+  nodeChildren,
+  nodes,
+  selectedId,
+  onSelect,
+  onInsertBranchChild,
+  onInsertAfter,
+  onDeleteNode,
+  allAgents,
+}: {
+  branchLabels: string[];
+  nodeId: string;
+  nodeChildren: (string | null)[];
+  nodes: Record<string, IVRNode>;
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  onInsertBranchChild: (parentId: string, branchIdx: number, type: NodeType) => void;
+  onInsertAfter: (afterId: string, type: NodeType) => void;
+  onDeleteNode: (id: string) => void;
+  allAgents?: string[];
+}) {
+  const count = branchLabels.length;
+  const totalW = count * COL_WIDTH + (count - 1) * COL_GAP;
+  const stemH = 16, barH = 20, r = 10, svgH = stemH + barH;
+  const xs = Array.from({ length: count }, (_, i) => i * (COL_WIDTH + COL_GAP) + COL_WIDTH / 2);
+  const cx = totalW / 2;
 
   const paths = xs.map(x => {
     if (Math.abs(x - cx) < 1) return `M ${cx} 0 L ${cx} ${svgH}`;
-    const dir = x < cx ? -1 : 1;
+    const goLeft = x < cx;
+    const s = goLeft ? -1 : 1;
     return (
-      `M ${cx} 0 L ${cx} ${barY - r}` +
-      ` Q ${cx} ${barY} ${cx + dir * r} ${barY}` +
-      ` L ${x - dir * r} ${barY}` +
-      ` Q ${x} ${barY} ${x} ${barY + r}` +
+      `M ${cx} 0 L ${cx} ${stemH - r}` +
+      ` Q ${cx} ${stemH} ${cx + s * r} ${stemH}` +
+      ` L ${x - s * r} ${stemH}` +
+      ` Q ${x} ${stemH} ${x} ${stemH + r}` +
       ` L ${x} ${svgH}`
     );
   });
 
   return (
-    <svg
-      width={totalWidth}
-      height={svgH}
-      style={{ display: 'block', overflow: 'visible' }}
-    >
-      {paths.map((d, i) => (
-        <path
-          key={i}
-          d={d}
-          fill="none"
-          stroke="#0d9488"
-          strokeWidth={2}
-          strokeLinecap="round"
-        />
-      ))}
-      {xs.map((x, i) => (
-        <circle key={i} cx={x} cy={svgH} r={5} fill="white" stroke="#0d9488" strokeWidth={2} />
-      ))}
-    </svg>
+    <div style={{ width: totalW, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      <svg width={totalW} height={svgH} style={{ display: 'block', flexShrink: 0 }}>
+        {paths.map((d, i) => (
+          <path key={i} d={d} fill="none" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+        ))}
+        {xs.map((x, i) => (
+          <circle key={i} cx={x} cy={svgH} r={5} fill="white" stroke="#0d9488" strokeWidth={2} />
+        ))}
+      </svg>
+      <div style={{ width: totalW, display: 'flex', alignItems: 'flex-start', gap: COL_GAP }}>
+        {branchLabels.map((label, idx) => {
+          const childHead = nodeChildren[idx] ?? null;
+          return (
+            <div key={idx} style={{ width: COL_WIDTH, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <span
+                className="px-2 py-0.5 rounded-full text-[10px] font-semibold text-white text-center"
+                style={{ background: '#1e293b', whiteSpace: 'nowrap', maxWidth: COL_WIDTH - 4, overflow: 'hidden', textOverflow: 'ellipsis' }}
+              >
+                {label}
+              </span>
+              <VLine h={10} />
+              <ChainColumn
+                headId={childHead}
+                nodes={nodes}
+                selectedId={selectedId}
+                onSelect={onSelect}
+                onInsertAtHead={t => onInsertBranchChild(nodeId, idx, t)}
+                onInsertAfter={onInsertAfter}
+                onDeleteNode={onDeleteNode}
+                onInsertBranchChild={onInsertBranchChild}
+                allAgents={allAgents}
+              />
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -650,46 +685,20 @@ function ChainColumn({
 
             {hasBranches ? (
               <>
-                <VLine h={12} />
+                <VLine h={10} />
                 <StaticDot />
-                <BranchConnector count={branchLabels.length} />
-                <div className="flex items-start" style={{ gap: COL_GAP }}>
-                  {branchLabels.map((label, idx) => {
-                    const childHead = node.children[idx] ?? null;
-                    return (
-                      <div
-                        key={idx}
-                        className="flex flex-col items-center"
-                        style={{ width: COL_WIDTH }}
-                      >
-                        <span
-                          className="px-2 py-0.5 rounded-full text-[10px] font-semibold text-white text-center"
-                          style={{
-                            background: '#1e293b',
-                            whiteSpace: 'nowrap',
-                            maxWidth: COL_WIDTH - 4,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                          }}
-                        >
-                          {label}
-                        </span>
-                        <VLine h={12} />
-                        <ChainColumn
-                          headId={childHead}
-                          nodes={nodes}
-                          selectedId={selectedId}
-                          onSelect={onSelect}
-                          onInsertAtHead={t => onInsertBranchChild(nid, idx, t)}
-                          onInsertAfter={onInsertAfter}
-                          onDeleteNode={onDeleteNode}
-                          onInsertBranchChild={onInsertBranchChild}
-                          allAgents={allAgents}
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
+                <BranchSection
+                  branchLabels={branchLabels}
+                  nodeId={nid}
+                  nodeChildren={node.children}
+                  nodes={nodes}
+                  selectedId={selectedId}
+                  onSelect={onSelect}
+                  onInsertBranchChild={onInsertBranchChild}
+                  onInsertAfter={onInsertAfter}
+                  onDeleteNode={onDeleteNode}
+                  allAgents={allAgents}
+                />
               </>
             ) : (
               <InsertDot onAdd={t => onInsertAfter(nid, t)} />
