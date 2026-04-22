@@ -732,17 +732,15 @@ export default function IVRCanvas({
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const canvasRef = React.useRef<HTMLDivElement>(null);
 
-  // Handle wheel zoom
+  // Handle wheel zoom (no modifier key needed)
   useEffect(() => {
     const el = canvasRef.current;
     if (!el) return;
 
     const handleWheel = (e: WheelEvent) => {
-      if (e.ctrlKey || e.metaKey) {
-        e.preventDefault();
-        const delta = e.deltaY > 0 ? -0.1 : 0.1;
-        setZoom(z => Math.min(Math.max(0.25, z + delta), 2));
-      }
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -0.1 : 0.1;
+      setZoom(z => Math.min(Math.max(0.25, z + delta), 2));
     };
 
     el.addEventListener('wheel', handleWheel, { passive: false });
@@ -750,7 +748,7 @@ export default function IVRCanvas({
   }, []);
 
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (e.button === 0 && e.target === canvasRef.current) {
+    if (e.button === 0) {
       setIsPanning(true);
       setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
     }
@@ -925,16 +923,17 @@ export default function IVRCanvas({
       <div className="flex flex-1 overflow-hidden">
         <div 
           ref={canvasRef}
-          className="flex-1 overflow-hidden flex flex-col items-center pt-12 pb-32 px-8 min-w-0 cursor-grab active:cursor-grabbing"
+          className="flex-1 relative overflow-hidden cursor-grab active:cursor-grabbing"
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
         >
-          <div 
-            className="flex flex-col items-center transition-transform origin-top"
-            style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}
-          >
+          <div className="absolute inset-0 overflow-auto flex items-start justify-center pt-12 pb-32 px-8">
+            <div 
+              className="flex flex-col items-center transition-transform origin-top"
+              style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}
+            >
             {/* Incoming call */}
             <div
               className="flex items-center gap-2 px-5 py-2.5 rounded-full text-white text-sm font-semibold shadow-lg"
@@ -972,9 +971,10 @@ export default function IVRCanvas({
               End Call
             </div>
           </div>
+          </div>
 
           {/* Zoom controls */}
-          <div className="fixed bottom-6 left-6 flex items-center gap-2 bg-card border border-border rounded-lg shadow px-3 py-1.5 z-10">
+          <div className="fixed bottom-6 left-6 flex items-center gap-2 bg-card border border-border rounded-lg shadow px-3 py-1.5 z-[1001]">
             <button 
               className="text-muted-foreground hover:text-foreground text-lg" 
               onClick={() => setZoom(z => Math.min(Math.max(0.25, z - 0.1), 2))}
