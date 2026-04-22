@@ -557,6 +557,7 @@ function NodeCard({
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const m = NODE_META[node.type];
+  const branchCount = node.type === 'hours' ? 2 : node.type === 'date' ? 2 : (node.branches?.length || 0) + 1;
   const subtitle =
     node.type === 'hours'
       ? node.timezone
@@ -567,24 +568,31 @@ function NodeCard({
 
   return (
     <div
-      className={`relative flex items-center gap-2 px-3 py-2 rounded-xl border transition-all shadow-sm cursor-pointer ${
-        active ? 'border-teal-500 bg-teal-900' : 'border-border bg-card hover:border-teal-400 hover:shadow-md'
+      className={`relative flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 transition-all shadow-sm cursor-pointer bg-card ${
+        active ? 'border-teal-500' : 'border-border hover:border-teal-300 hover:shadow-md'
       }`}
       style={{ width: COL_WIDTH }}
     >
       <span
         className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-        style={{ background: active ? 'rgba(255,255,255,0.15)' : `${m.color}20` }}
+        style={{ background: `${m.color}18` }}
       >
-        <span style={{ color: active ? 'white' : m.color }}>{m.icon}</span>
+        <span style={{ color: m.color }}>{m.icon}</span>
       </span>
-      <button onClick={onClick} className="flex-1 text-left min-w-0">
-        <div className={`text-xs font-semibold truncate ${active ? 'text-white' : ''}`}>
-          {m.label}
+      <button onClick={onClick} className="flex-1 text-left min-w-0 flex items-center gap-2">
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-semibold truncate">
+            {m.label}
+          </div>
+          <div className="text-[11px] truncate text-muted-foreground">
+            {subtitle}
+          </div>
         </div>
-        <div className={`text-[10px] truncate ${active ? 'text-teal-200' : 'text-muted-foreground'}`}>
-          {subtitle}
-        </div>
+        {(node.type === 'hours' || node.type === 'date') && (
+          <span className="text-[10px] text-muted-foreground flex-shrink-0 whitespace-nowrap">
+            {branchCount} options
+          </span>
+        )}
       </button>
       <div className="relative flex-shrink-0">
         <button
