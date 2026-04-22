@@ -1,8 +1,8 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
-  ArrowLeft, Undo2, Redo2, Loader2,
+  Undo2, Redo2, Loader2,
   X, Save, Check, Phone, Clock,
-  Calendar, Key, Trash2, Copy, MoreVertical
+  Calendar, Key, Trash2, Copy
 } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -85,8 +85,6 @@ const TIMEZONES = [
 ];
 
 const NODE_W = 280;
-const NODE_H = 64;
-const LABEL_W = 120;
 
 // ── ID generation ─────────────────────────────────────────────────────────────
 
@@ -96,10 +94,10 @@ const uid = () => `n${++_id}`;
 function makeNode(type: NodeType): IVRNode {
   const base = { id: uid(), type, children: [], next: null };
   if (type === 'hours') {
-    return { ...base, timezone: 'Europe/Brussels', schedule: 'Monday - Sunday 08:00 - 22:00' };
+    return { ...base, branches: [], timezone: 'Europe/Brussels', schedule: 'Monday - Sunday 08:00 - 22:00' };
   }
   if (type === 'date') {
-    return { ...base, dateTimezone: 'Europe/Brussels' };
+    return { ...base, branches: [], dateTimezone: 'Europe/Brussels' };
   }
   return {
     ...base,
@@ -124,7 +122,58 @@ function getBranchLabels(node: IVRNode): string[] {
 
 // ── Primitive connectors ───────────────────────────────────────────────────────
 
-function ConnectorDot({ color = '#0d9488' }: { color?: string }) {
+// Clickable insertion point — dot + popup menu for inserting nodes
+function InsertionPoint({
+  onInsert,
+  isTop = false,
+}: {
+  onInsert: (t: NodeType) => void;
+  isTop?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative flex flex-col items-center" style={{ zIndex: 10 }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        title="Insert node here"
+        className="w-5 h-5 rounded-full border-2 border-teal-600 bg-white flex items-center justify-center transition-all cursor-pointer hover:bg-teal-50"
+        style={{ zIndex: 5 }}
+      >
+        <span style={{ color: '#0d9488', fontSize: 12, lineHeight: 1, fontWeight: 700 }}>+</span>
+      </button>
+      {open && (
+        <div
+          className="absolute bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-50"
+          style={{ minWidth: 200, top: isTop ? 'auto' : 'calc(100% + 6px)', bottom: isTop ? 'calc(100% + 6px)' : 'auto', left: '50%', transform: 'translateX(-50%)' }}
+        >
+          <div className="px-4 pt-3 pb-1 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Insert node</div>
+          {(Object.keys(NODE_META) as NodeType[]).filter(t => t !== 'action').map(t => {
+            const m = NODE_META[t];
+            return (
+              <button
+                key={t}
+                onClick={() => { onInsert(t); setOpen(false); }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors text-left"
+              >
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `${m.color}18` }}>
+                  <span style={{ color: m.color }}>{m.icon}</span>
+                </div>
+                <div>
+                  <div className="text-sm font-medium text-gray-900">{m.label}</div>
+                  <div className="text-xs text-gray-400">{m.desc}</div>
+                </div>
+              </button>
+            );
+          })}
+          <button onClick={() => setOpen(false)} className="w-full text-center text-xs text-gray-400 py-2 hover:bg-gray-50 transition-colors border-t border-gray-100">Cancel</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Static connector dot (non-clickable, for visual continuity)
+function ConnectorDot() {
   return (
     <div
       className="w-3 h-3 rounded-full border-2 border-black bg-white flex-shrink-0"
@@ -251,7 +300,7 @@ function ActionCard({ label }: { label: string }) {
   const [menuOpen, setMenuOpen] = useState(false);
   return (
     <div
-      className="relative flex items-center gap-3 px-4 py-3 rounded-2xl cursor-pointer transition-all hover:brightness-105"
+      className="relative flex items-center gap-3 px-4 py-3 rounded-2xl transition-all hover:brightness-105"
       style={{ width: NODE_W, background: '#0d9488' }}
     >
       <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-white/20">
@@ -271,6 +320,20 @@ function ActionCard({ label }: { label: string }) {
           <circle cx="7" cy="12" r="1.3" />
         </svg>
       </button>
+      {menuOpen && (
+        <div
+          className="absolute z-50 right-0 top-12 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden"
+          style={{ minWidth: 160 }}
+          onClick={e => e.stopPropagation()}
+        >
+          <button
+            className="w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-gray-50 transition-colors text-left"
+            onClick={() => setMenuOpen(false)}
+          >
+            <Copy className="w-4 h-4 text-gray-500" /> Copy
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -429,55 +492,6 @@ function ConfigPanel({ node, onClose, onChange, onDelete, allAgents }: {
     </div>
   );
 }
-
-// ── InsertDot ────────────────────────────────────────────────────────────────
-
-function InsertDot({ onAdd }: { onAdd: (t: NodeType) => void }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="relative flex flex-col items-center" style={{ zIndex: 10 }}>
-      <button
-        onClick={() => setOpen(o => !o)}
-        title="Insert node here"
-        className="w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all cursor-pointer"
-        style={{
-          background: open ? '#0d9488' : 'transparent',
-          borderColor: '#0d9488',
-        }}
-      >
-        <span style={{ color: open ? 'white' : '#0d9488', fontSize: 16, lineHeight: 1 }}>+</span>
-      </button>
-      {open && (
-        <div
-          className="absolute bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden"
-          style={{ minWidth: 220, top: 'calc(100% + 8px)', left: '50%', transform: 'translateX(-50%)', zIndex: 50 }}
-        >
-          <div className="px-4 pt-3 pb-1 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Insert node</div>
-          {(Object.keys(NODE_META) as NodeType[]).filter(t => t !== 'action').map(t => {
-            const m = NODE_META[t];
-            return (
-              <button
-                key={t}
-                onClick={() => { onAdd(t); setOpen(false); }}
-                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors text-left"
-              >
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: `${m.color}18` }}>
-                  <span style={{ color: m.color }}>{m.icon}</span>
-                </div>
-                <div>
-                  <div className="text-sm font-medium text-gray-900">{m.label}</div>
-                  <div className="text-xs text-gray-400">{m.desc}</div>
-                </div>
-              </button>
-            );
-          })}
-          <button onClick={() => setOpen(false)} className="w-full text-center text-xs text-gray-400 py-2.5 hover:bg-gray-50 transition-colors border-t border-gray-100">Cancel</button>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ── Split-and-Merge Branch Section ─────────────────────────────────────────────
 
 function BranchSection({
@@ -583,7 +597,7 @@ function BranchSection({
           );
         })}
       </svg>
-      <ConnectorDot />
+      <InsertionPoint onInsert={t => onInsertAfter(nodeId, t)} />
     </div>
   );
 }
@@ -620,7 +634,7 @@ function ChainColumn({
 
   return (
     <div className="flex flex-col items-center">
-      <InsertDot onAdd={onInsertAtHead} />
+      <InsertionPoint onInsert={onInsertAtHead} />
 
       {chain.map(nid => {
         const node = nodes[nid];
@@ -630,7 +644,7 @@ function ChainColumn({
         return (
           <div key={nid} className="flex flex-col items-center">
             <VLine h={14} />
-            <ConnectorDot />
+            <InsertionPoint onInsert={onInsertAtHead} />
 
             <LogicNode
               node={node}
@@ -640,7 +654,7 @@ function ChainColumn({
             />
 
             <VLine h={10} />
-            <ConnectorDot />
+            <InsertionPoint onInsert={t => onInsertAfter(nid, t)} />
 
             {hasBranches ? (
               <BranchSection
@@ -657,19 +671,22 @@ function ChainColumn({
               />
             ) : (
               <>
-                <InsertDot onAdd={t => onInsertAfter(nid, t)} />
-                {node.next && (
+                <InsertionPoint onInsert={t => onInsertAfter(nid, t)} />
+                {node.next && (() => {
+                  const nextId = node.next;
+                  return (
                   <>
                     <VLine h={14} />
-                    <ConnectorDot />
+                    <InsertionPoint onInsert={t => onInsertAfter(nextId, t)} />
                     <LogicNode
-                      node={nodes[node.next]}
-                      isSelected={selectedId === node.next}
-                      onClick={() => onSelect(node.next)}
-                      onDelete={() => onDeleteNode(node.next)}
+                      node={nodes[nextId]}
+                      isSelected={selectedId === nextId}
+                      onClick={() => onSelect(nextId)}
+                      onDelete={() => onDeleteNode(nextId)}
                     />
                   </>
-                )}
+                  );
+                })()}
               </>
             )}
           </div>
@@ -801,6 +818,15 @@ export default function IVRCanvas({
 
   const selectedNode = selectedId ? flow.nodes[selectedId] : null;
 
+  // Find last node in the chain for clickable insert point before ActionCard
+  let lastChainNodeId: string | null = null;
+  let cur: string | null = flow.rootHead;
+  while (cur) {
+    const node = flow.nodes[cur];
+    if (!node.next) { lastChainNodeId = cur; break; }
+    cur = node.next;
+  }
+
   return (
     <div className="fixed inset-0 z-[1000] flex flex-col font-sans bg-gray-100">
       {/* Top navbar */}
@@ -881,7 +907,9 @@ export default function IVRCanvas({
               />
 
               <VLine h={20} />
-              <ConnectorDot />
+              {lastChainNodeId
+                ? <InsertionPoint onInsert={t => insertAfter(lastChainNodeId, t)} />
+                : <ConnectorDot />}
               <VLine h={14} />
 
               {/* Root-level end */}
