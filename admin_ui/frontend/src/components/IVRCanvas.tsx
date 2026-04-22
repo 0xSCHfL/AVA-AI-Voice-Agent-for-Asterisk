@@ -726,6 +726,45 @@ export default function IVRCanvas({
   const [status, setStatus] = useState<'draft' | 'published'>(
     initialData?.status || 'draft'
   );
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [isPanning, setIsPanning] = useState(false);
+  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+  const canvasRef = React.useRef<HTMLDivElement>(null);
+
+  // Handle wheel zoom
+  useEffect(() => {
+    const el = canvasRef.current;
+    if (!el) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? -0.1 : 0.1;
+        setZoom(z => Math.min(Math.max(0.25, z + delta), 2));
+      }
+    };
+
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    return () => el.removeEventListener('wheel', handleWheel);
+  }, []);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (e.button === 0 && e.target === canvasRef.current) {
+      setIsPanning(true);
+      setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+    }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (isPanning) {
+      setPan({ x: e.clientX - panStart.x, y: e.clientY - panStart.y });
+    }
+  };
+
+  const handleMouseUp = () => {
+    setIsPanning(false);
+  };
 
   // Update flow when initialData changes
   useEffect(() => {
@@ -823,7 +862,7 @@ export default function IVRCanvas({
   const selectedNode = selectedId ? flow.nodes[selectedId] : null;
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: '#09090b', zIndex: 1000, display: 'flex', flexDirection: 'column', fontFamily: 'inherit' }}>
+    <div className="fixed inset-0 bg-background z-[1000] flex flex-col font-sans dark:bg-slate-950">
       {/* Top navbar */}
       <header className="flex items-center justify-between px-5 py-3 bg-card border-b border-border shadow-sm flex-shrink-0">
         <div className="flex items-center gap-4">
@@ -884,8 +923,17 @@ export default function IVRCanvas({
 
       {/* Canvas + side panel row */}
       <div className="flex flex-1 overflow-hidden">
-        <div className="flex-1 overflow-auto flex flex-col items-center pt-12 pb-32 px-8 min-w-0">
-          <div className="flex flex-col items-center">
+        <div 
+          ref={canvasRef}
+          className="flex-1 overflow-hidden flex flex-col items-center pt-12 pb-32 px-8 min-w-0 cursor-grab active:cursor-grabbing"
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+        >
+          <div 
+            className="flex flex-col items-center transition-transform origin-top"
+            style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}
             {/* Incoming call */}
             <div
               className="flex items-center gap-2 px-5 py-2.5 rounded-full text-white text-sm font-semibold shadow-lg"
@@ -925,12 +973,21 @@ export default function IVRCanvas({
           </div>
 
           {/* Zoom controls */}
-          <div className="fixed bottom-6 left-6 flex items-center gap-2 bg-card border border-border rounded-lg shadow px-3 py-1.5">
-            <button className="text-muted-foreground hover:text-foreground text-lg">−</button>
-            <span className="text-xs text-muted-foreground font-medium w-9 text-center">100%</span>
-            <button className="text-muted-foreground hover:text-foreground text-lg">+</button>
+          <div className="fixed bottom-6 left-6 flex items-center gap-2 bg-card border border-border rounded-lg shadow px-3 py-1.5 z-10">
+            <button 
+              className="text-muted-foreground hover:text-foreground text-lg" 
+              onClick={() => setZoom(z => Math.min(Math.max(0.25, z - 0.1), 2))}
+            >−</button>
+            <span className="text-xs text-muted-foreground font-medium w-9 text-center">{Math.round(zoom * 100)}%</span>
+            <button 
+              className="text-muted-foreground hover:text-foreground text-lg"
+              onClick={() => setZoom(z => Math.min(Math.max(0.25, z + 0.1), 2))}
+            >+</button>
             <span className="text-border mx-1">|</span>
-            <button className="text-muted-foreground hover:text-foreground text-sm">⛶</button>
+            <button 
+              className="text-muted-foreground hover:text-foreground text-sm"
+              onClick={() => { setPan({ x: 0, y: 0 }); setZoom(1); }}
+            >⛶</button>
           </div>
         </div>
 
