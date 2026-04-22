@@ -289,6 +289,13 @@ const IVRPage: React.FC = () => {
                   >
                     <CopyIcon className="w-4 h-4" />
                   </button>
+                  <button
+                    onClick={() => handleDeleteIvr(ivr.name)}
+                    className="p-2 rounded-md hover:bg-accent transition-colors text-destructive"
+                    title="Delete"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                   <div className="relative">
                     <button
                       onClick={(e) => { e.stopPropagation(); setMenuOpen(menuOpen === ivr.name ? null : ivr.name); }}
