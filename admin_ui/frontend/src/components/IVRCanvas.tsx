@@ -823,7 +823,7 @@ export default function IVRCanvas({
   const selectedNode = selectedId ? flow.nodes[selectedId] : null;
 
   return (
-    <div className="flex flex-col h-full bg-muted/30 font-sans overflow-hidden">
+    <div style={{ position: 'fixed', inset: 0, background: '#09090b', zIndex: 1000, display: 'flex', flexDirection: 'column', fontFamily: 'inherit' }}>
       {/* Top navbar */}
       <header className="flex items-center justify-between px-5 py-3 bg-card border-b border-border shadow-sm flex-shrink-0">
         <div className="flex items-center gap-4">
