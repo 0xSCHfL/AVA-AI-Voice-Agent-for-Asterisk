@@ -934,6 +934,7 @@ export default function IVRCanvas({
           <div 
             className="flex flex-col items-center transition-transform origin-top"
             style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}
+          >
             {/* Incoming call */}
             <div
               className="flex items-center gap-2 px-5 py-2.5 rounded-full text-white text-sm font-semibold shadow-lg"
@@ -970,6 +971,7 @@ export default function IVRCanvas({
               <ArrowLeft className="w-4 h-4" />
               End Call
             </div>
+          </div>
           </div>
 
           {/* Zoom controls */}
