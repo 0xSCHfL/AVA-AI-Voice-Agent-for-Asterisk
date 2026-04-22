@@ -10,7 +10,7 @@ import {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type NodeType = 'hours' | 'date' | 'dtmf' | 'svi_audio' | 'redirect' | 'action';
+type NodeType = 'hours' | 'date' | 'dtmf' | 'redirect' | 'action';
 
 interface Branch {
   id: string;
@@ -62,13 +62,6 @@ const NODE_META: Record<NodeType, { label: string; icon: React.ReactNode; desc: 
   },
   dtmf: {
     label: 'DTMF Menu',
-    icon: <Key className="w-4 h-4" />,
-    desc: 'Touch-tone menu selection',
-    color: '#0d9488',
-    borderColor: '#0d9488',
-  },
-  svi_audio: {
-    label: 'Audio SVI',
     icon: <Volume2 className="w-4 h-4" />,
     desc: 'Play audio and collect DTMF',
     color: '#108A85',
@@ -451,98 +444,8 @@ function DatePanel({ node, onChange }: { node: IVRNode; onChange: (p: Partial<IV
 }
 
 function DTMFPanel({ node, onChange }: { node: IVRNode; onChange: (p: Partial<IVRNode>) => void }) {
-  const addBranch = () => {
-    const branches = [...(node.branches || []), { id: uid(), label: `Option ${(node.branches?.length || 0) + 1}` }];
-    onChange({ branches });
-  };
-
-  return (
-    <div className="space-y-5">
-      <div>
-        <div className="text-sm font-semibold text-gray-900 mb-2">Menu Options</div>
-        <div className="space-y-2">
-          {node.branches?.map((b, i) => (
-            <div key={b.id} className="flex items-center gap-2">
-              <span className="w-7 h-7 rounded-full bg-teal-600 text-white text-xs flex items-center justify-center font-bold">{i + 1}</span>
-              <input
-                className="flex-1 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
-                value={b.label}
-                onChange={e => onChange({ branches: node.branches?.map(br => br.id === b.id ? { ...br, label: e.target.value } : br) })}
-              />
-              <button
-                onClick={() => onChange({ branches: node.branches?.filter(br => br.id !== b.id) })}
-                className="text-gray-400 hover:text-red-500 text-lg leading-none"
-              >×</button>
-            </div>
-          ))}
-        </div>
-        <button
-          onClick={addBranch}
-          className="mt-3 w-full border-2 border-dashed border-teal-200 rounded-xl py-2 text-sm text-teal-600 font-medium hover:border-teal-400 transition-colors"
-        >
-          + Add option
-        </button>
-      </div>
-      <div className="border-t border-gray-100 pt-4">
-        <div className="text-sm font-semibold text-gray-900 mb-3">Welcome Message</div>
-        <textarea
-          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 resize-none"
-          rows={3}
-          value={node.inviteMessage || ''}
-          onChange={e => onChange({ inviteMessage: e.target.value })}
-          placeholder="e.g: Press 1 for services, 2 for offers..."
-        />
-        <div className="grid grid-cols-2 gap-2 mt-3">
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Language</label>
-            <select
-              className="w-full rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-teal-400"
-              value={node.inviteLanguage}
-              onChange={e => onChange({ inviteLanguage: e.target.value })}
-            >
-              {LANGUAGES.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Voice</label>
-            <select className="w-full rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-teal-400">
-              <option>Default</option>
-            </select>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SVI Panel — Professional SVI audio node configuration sidebar
-// ─────────────────────────────────────────────────────────────────────────────
-
-const AUDIO_TYPES = [
-  {
-    value: 'synthesized',
-    label: 'Synthèse vocale',
-    icon: <Volume2 className="w-4 h-4" />,
-    desc: 'Convertir un texte en audio avec l’IA',
-  },
-  {
-    value: 'file',
-    label: 'Fichier personnalisé',
-    icon: <File className="w-4 h-4" />,
-    desc: 'Utiliser un fichier audio (.mp3, .wav)',
-  },
-  {
-    value: 'recording',
-    label: 'Enregistrement audio',
-    icon: <Mic className="w-4 h-4" />,
-    desc: 'Enregistrer directement dans le navigateur',
-  },
-];
-
-function SVIPanel({ node, onChange }: { node: IVRNode; onChange: (p: Partial<IVRNode>) => void }) {
   const [messageAccordionOpen, setMessageAccordionOpen] = useState(true);
-  const [retryAccordionOpen, setRetryAccordionOpen] = useState(false);
+  const [dtmfAccordionOpen, setDTMFAccordionOpen] = useState(false);
   const [audioTypeOpen, setAudioTypeOpen] = useState(true);
   const [selectedAudioType, setSelectedAudioType] = useState(node.audioType || 'file');
 
@@ -564,7 +467,6 @@ function SVIPanel({ node, onChange }: { node: IVRNode; onChange: (p: Partial<IVR
 
         {/* ── Accordion 1: Message d'invite ── */}
         <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
-          {/* Header */}
           <button
             onClick={() => setMessageAccordionOpen(o => !o)}
             className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-gray-50 transition-colors"
@@ -575,7 +477,6 @@ function SVIPanel({ node, onChange }: { node: IVRNode; onChange: (p: Partial<IVR
 
           {messageAccordionOpen && (
             <div className="px-4 pb-4 space-y-4">
-              {/* Helper text */}
               <p className="text-xs text-gray-500 leading-relaxed">
                 Créez un message pour indiquer à l'appelant quelle option sélectionner.
               </p>
@@ -584,20 +485,16 @@ function SVIPanel({ node, onChange }: { node: IVRNode; onChange: (p: Partial<IVR
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1.5">Type de message</label>
                 <div className="relative">
-                  {/* Dropdown trigger */}
                   <button
                     onClick={() => setAudioTypeOpen(o => !o)}
                     className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg border border-gray-200 bg-white text-sm text-left hover:border-gray-300 transition-colors"
                   >
-                    <div className="flex items-center gap-2">
-                      <span className="text-gray-900">
-                        {AUDIO_TYPES.find(t => t.value === selectedAudioType)?.label || 'Fichier personnalisé'}
-                      </span>
-                    </div>
+                    <span className="text-gray-900">
+                      {AUDIO_TYPES.find(t => t.value === selectedAudioType)?.label || 'Fichier personnalisé'}
+                    </span>
                     <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${audioTypeOpen ? '' : '-rotate-180'}`} />
                   </button>
 
-                  {/* Dropdown list — always visible when open */}
                   {audioTypeOpen && (
                     <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-white rounded-xl border border-gray-200 shadow-xl overflow-hidden">
                       {AUDIO_TYPES.map(type => (
@@ -621,7 +518,7 @@ function SVIPanel({ node, onChange }: { node: IVRNode; onChange: (p: Partial<IVR
                 </div>
               </div>
 
-              {/* Synthesized: text input */}
+              {/* Synthesized text */}
               {selectedAudioType === 'synthesized' && (
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1.5">Texte du message</label>
@@ -656,9 +553,7 @@ function SVIPanel({ node, onChange }: { node: IVRNode; onChange: (p: Partial<IVR
                       input.accept = '.mp3,.wav,.ogg';
                       input.onchange = (e: any) => {
                         const file = e.target.files?.[0];
-                        if (file) {
-                          onChange({ audioUrl: file.name, inviteMessage: file.name });
-                        }
+                        if (file) onChange({ audioUrl: file.name, inviteMessage: file.name });
                       };
                       input.click();
                     }}
@@ -678,17 +573,14 @@ function SVIPanel({ node, onChange }: { node: IVRNode; onChange: (p: Partial<IVR
                     )}
                   </div>
                   {node.audioUrl && (
-                    <button
-                      onClick={() => onChange({ audioUrl: '', inviteMessage: '' })}
-                      className="mt-2 text-xs text-red-500 hover:text-red-700"
-                    >
+                    <button onClick={() => onChange({ audioUrl: '', inviteMessage: '' })} className="mt-2 text-xs text-red-500 hover:text-red-700">
                       Supprimer le fichier
                     </button>
                   )}
                 </div>
               )}
 
-              {/* Recording: record button */}
+              {/* Recording */}
               {selectedAudioType === 'recording' && (
                 <div className="flex flex-col items-center py-4">
                   <button className="w-16 h-16 rounded-full bg-red-100 hover:bg-red-200 flex items-center justify-center transition-colors mb-3">
@@ -702,23 +594,18 @@ function SVIPanel({ node, onChange }: { node: IVRNode; onChange: (p: Partial<IVR
           )}
         </div>
 
-        {/* ── Accordion 2: DTMF Options ── */}
+        {/* ── Accordion 2: Options DTMF ── */}
         <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
           <button
-            onClick={() => setRetryAccordionOpen(o => !o)}
+            onClick={() => setDTMFAccordionOpen(o => !o)}
             className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-gray-50 transition-colors"
           >
             <span className="text-sm font-bold text-gray-900">Options DTMF</span>
-            <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${retryAccordionOpen ? '' : '-rotate-180'}`} />
+            <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${dtmfAccordionOpen ? '' : '-rotate-180'}`} />
           </button>
 
-          {retryAccordionOpen && (
+          {dtmfAccordionOpen && (
             <div className="px-4 pb-4 space-y-3">
-              <p className="text-xs text-gray-500 leading-relaxed">
-                Définissez les options que l'appelant peut sélectionner.
-              </p>
-
-              {/* DTMF options list */}
               <div className="space-y-2">
                 {node.branches?.map((branch, i) => (
                   <div key={branch.id} className="flex items-center gap-2">
@@ -738,13 +625,10 @@ function SVIPanel({ node, onChange }: { node: IVRNode; onChange: (p: Partial<IVR
                     <button
                       onClick={() => onChange({ branches: (node.branches || []).filter(b => b.id !== branch.id) })}
                       className="w-7 h-7 rounded-md flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-                    >
-                      ×
-                    </button>
+                    >×</button>
                   </div>
                 ))}
               </div>
-
               <button
                 onClick={addDTMFOption}
                 className="w-full border-2 border-dashed border-gray-200 rounded-lg py-2 text-sm text-gray-500 font-medium hover:border-gray-300 hover:text-gray-700 transition-colors"
@@ -754,56 +638,12 @@ function SVIPanel({ node, onChange }: { node: IVRNode; onChange: (p: Partial<IVR
             </div>
           )}
         </div>
-
-        {/* ── Accordion 3: Gestion des réessais ── */}
-        <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
-          <button
-            onClick={() => setRetryAccordionOpen(o => !o)}
-            className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-gray-50 transition-colors"
-          >
-            <span className="text-sm font-bold text-gray-900">Gestion des réessais</span>
-            <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${retryAccordionOpen ? '' : '-rotate-180'}`} />
-          </button>
-
-          {retryAccordionOpen && (
-            <div className="px-4 pb-4 space-y-4">
-              <p className="text-xs text-gray-500 leading-relaxed">
-                Configurez une nouvelle tentative lorsqu'une saisie est invalide ou qu'il n'y a pas de réponse à temps.
-              </p>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1.5">Message de recomposition</label>
-                <input
-                  className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
-                  value={node.retryMessage || ''}
-                  onChange={e => onChange({ retryMessage: e.target.value })}
-                  placeholder="Appuyez sur une touche valide..."
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1.5">Nombre de réessais</label>
-                <select className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
-                  <option>1 tentative</option>
-                  <option>2 tentatives</option>
-                  <option>3 tentatives</option>
-                </select>
-              </div>
-            </div>
-          )}
-        </div>
       </div>
 
-      {/* Footer link */}
+      {/* Footer */}
       <div className="px-4 py-3 border-t border-gray-100">
-        <a
-          href="#"
-          className="flex items-center gap-1 text-xs font-medium hover:underline"
-          style={{ color: '#108A85' }}
-          onClick={e => e.preventDefault()}
-        >
-          En savoir plus sur SVI standard
-          <ExternalLink className="w-3 h-3" />
+        <a href="#" className="flex items-center gap-1 text-xs font-medium hover:underline" style={{ color: '#108A85' }} onClick={e => e.preventDefault()}>
+          En savoir plus sur SVI standard <ExternalLink className="w-3 h-3" />
         </a>
       </div>
     </div>
@@ -811,34 +651,36 @@ function SVIPanel({ node, onChange }: { node: IVRNode; onChange: (p: Partial<IVR
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// SVI Panel — Professional SVI audio node configuration sidebar
+// ─────────────────────────────────────────────────────────────────────────────
+
+const AUDIO_TYPES = [
+  {
+    value: 'synthesized',
+    label: 'Synthèse vocale',
+    icon: <Volume2 className="w-4 h-4" />,
+    desc: 'Convertir un texte en audio avec l’IA',
+  },
+  {
+    value: 'file',
+    label: 'Fichier personnalisé',
+    icon: <File className="w-4 h-4" />,
+    desc: 'Utiliser un fichier audio (.mp3, .wav)',
+  },
+  {
+    value: 'recording',
+    label: 'Enregistrement audio',
+    icon: <Mic className="w-4 h-4" />,
+    desc: 'Enregistrer directement dans le navigateur',
+  },
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 function ConfigPanel({ node, onClose, onChange, onDelete, allAgents }: {
   node: IVRNode; onClose: () => void; onChange: (p: Partial<IVRNode>) => void; onDelete: () => void; allAgents?: string[];
 }) {
   const m = NODE_META[node.type];
-
-  // SVI Audio node uses its own full sidebar layout
-  if (node.type === 'svi_audio') {
-    return (
-      <div className="w-80 border-l border-gray-200 bg-white h-full flex flex-col shadow-xl overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `${m.color}18` }}>
-              <span style={{ color: m.color }}>{m.icon}</span>
-            </div>
-            <span className="font-semibold text-gray-900">{m.label}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <button onClick={onDelete} className="text-xs text-red-600 hover:text-red-700 font-medium">Delete</button>
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-xl leading-none">×</button>
-          </div>
-        </div>
-        <div className="flex-1 overflow-hidden">
-          <SVIPanel node={node} onChange={onChange} />
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="w-80 border-l border-gray-200 bg-white h-full flex flex-col shadow-xl">
