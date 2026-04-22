@@ -285,6 +285,22 @@ function BranchSection({
                 onInsertBranchChild={onInsertBranchChild}
                 allAgents={allAgents}
               />
+              <VLine h={10} />
+              <StaticDot />
+              <VLine h={12} />
+              {/* End Call rectangle per branch */}
+              <div
+                className="flex items-center gap-2 px-3 py-2 rounded-xl border-2 border-border bg-card shadow-sm"
+                style={{ width: COL_WIDTH }}
+              >
+                <span
+                  className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                  style={{ background: '#0d948820' }}
+                >
+                  <Phone className="w-4 h-4" style={{ color: '#0d9488' }} />
+                </span>
+                <span className="text-sm font-semibold text-muted-foreground">End Call</span>
+              </div>
             </div>
           );
         })}
@@ -979,7 +995,7 @@ export default function IVRCanvas({
             <StaticDot />
             <VLine h={12} />
 
-            {/* End call */}
+            {/* Root-level End Call — shown when root chain has no branching node */}
             <div
               className="flex items-center gap-2 px-5 py-2.5 rounded-full text-white text-sm font-semibold shadow"
               style={{ background: '#1e293b' }}
