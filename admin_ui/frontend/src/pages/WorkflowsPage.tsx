@@ -243,6 +243,24 @@ const WorkflowsPage = () => {
     }
   };
 
+  const formatDate = (dateStr?: string) => {
+    if (!dateStr) return '—';
+    try {
+      const date = new Date(dateStr);
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    } catch {
+      return '—';
+    }
+  };
+
+  const getWorkflowDate = (name: string) => {
+    const timestamp = name.replace('workflow_', '');
+    if (/^\d+$/.test(timestamp)) {
+      return new Date(parseInt(timestamp)).toISOString();
+    }
+    return new Date().toISOString();
+  };
+
   // Filter and sort workflows
   const filteredWorkflows = useMemo(() => {
     let result = workflowNames
@@ -277,24 +295,6 @@ const WorkflowsPage = () => {
     }
     return result;
   }, [workflowNames, workflowsData, searchQuery, sortBy]);
-
-  const formatDate = (dateStr?: string) => {
-    if (!dateStr) return '—';
-    try {
-      const date = new Date(dateStr);
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    } catch {
-      return '—';
-    }
-  };
-
-  const getWorkflowDate = (name: string) => {
-    const timestamp = name.replace('workflow_', '');
-    if (/^\d+$/.test(timestamp)) {
-      return new Date(parseInt(timestamp)).toISOString();
-    }
-    return new Date().toISOString();
-  };
 
   const getJsonLineCount = (data: any) => {
     return JSON.stringify(data, null, 2).split('\n').length;

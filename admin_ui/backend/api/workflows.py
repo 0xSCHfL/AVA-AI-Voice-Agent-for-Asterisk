@@ -45,6 +45,7 @@ class WorkflowGetResponse(BaseModel):
     voice_provider: Optional[str] = None
     voice_name: Optional[str] = None
     prompt: Optional[str] = None
+    language: Optional[str] = None
     tools: List[str] = []
     # Legacy aliases (backward compat)
     global_prompt: Optional[str] = None
@@ -68,6 +69,7 @@ class WorkflowPutRequest(BaseModel):
     voice_provider: Optional[str] = None # openai, elevenlabs, google, etc.
     voice_name: Optional[str] = None    # alloy, emily, etc.
     prompt: Optional[str] = None        # System instructions (primary field)
+    language: Optional[str] = None      # Default workflow language (e.g. fr-FR)
     tools: List[str] = []              # Tool names this workflow can use
     # Legacy aliases (backward compatibility with Hybrid Option C)
     global_prompt: Optional[str] = None
@@ -466,6 +468,7 @@ async def get_workflow(name: str) -> WorkflowGetResponse:
         voice_provider=workflow.get("voice_provider"),
         voice_name=workflow.get("voice_name"),
         prompt=workflow.get("prompt"),
+        language=workflow.get("language"),
         tools=workflow.get("tools", []),
         global_prompt=workflow.get("global_prompt"),
         global_voice_provider=workflow.get("global_voice_provider"),
@@ -518,6 +521,7 @@ async def put_workflow(name: str, req: WorkflowPutRequest) -> WorkflowGetRespons
         "voice_provider": req.voice_provider,
         "voice_name": req.voice_name,
         "prompt": resolved_prompt,
+        "language": req.language,
         "tools": req.tools,
         # Legacy aliases (backward compat)
         "global_prompt": resolved_prompt,
@@ -557,6 +561,7 @@ async def put_workflow(name: str, req: WorkflowPutRequest) -> WorkflowGetRespons
         voice_provider=req.voice_provider,
         voice_name=req.voice_name,
         prompt=resolved_prompt,
+        language=req.language,
         tools=req.tools,
         global_prompt=resolved_prompt,
         global_voice_provider=req.global_voice_provider or req.voice_provider,
