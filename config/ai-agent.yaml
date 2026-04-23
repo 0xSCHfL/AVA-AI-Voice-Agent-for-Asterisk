@@ -60,7 +60,7 @@ contexts:
       - Quand l'appelant indique que la conversation est terminée, dis un bref
         message de fin puis utilise l'outil hangup_call pour terminer l'appel.
       - Ne mentionne jamais les outils à l'appelant.
-    pipeline: local_hybrid
+    pipeline: hybrid_openai_tts
     tools:
       - hangup_call
   Tool_Example:
@@ -1310,6 +1310,28 @@ pipelines:
         temperature: 0.7
         max_tokens: 200
       tts:
+        format:
+          encoding: mulaw
+          sample_rate: 8000
+  hybrid_openai_tts:
+    stt: local_stt
+    llm: openai_llm
+    tts: openai_tts
+    options:
+      stt:
+        chunk_ms: 160
+        mode: stt
+        streaming: true
+        stream_format: pcm16_16k
+      llm:
+        base_url: https://api.openai.com/v1
+        model: gpt-4o-mini
+        temperature: 0.7
+        max_tokens: 200
+      tts:
+        model: tts-1
+        voice: alloy
+        response_format: wav
         format:
           encoding: mulaw
           sample_rate: 8000
