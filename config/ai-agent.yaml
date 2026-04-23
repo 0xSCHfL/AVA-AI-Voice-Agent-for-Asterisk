@@ -60,7 +60,7 @@ contexts:
       - Quand l'appelant indique que la conversation est terminée, dis un bref
         message de fin puis utilise l'outil hangup_call pour terminer l'appel.
       - Ne mentionne jamais les outils à l'appelant.
-    pipeline: hybrid_elevenlabs
+    pipeline: local_hybrid
     tools:
       - hangup_call
   Tool_Example:
