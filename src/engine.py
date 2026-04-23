@@ -388,6 +388,11 @@ class Engine:
         # Workflow engine for structured conversation flows
         from .core.workflow_loader import WorkflowLoader
         self.workflow_loader = WorkflowLoader(config.dict() if hasattr(config, 'dict') else config.__dict__)
+        try:
+            cfg_dict = config.dict() if hasattr(config, "dict") else config.__dict__
+            self.did_routes: Dict[str, Dict[str, Any]] = dict(cfg_dict.get("did_routes", {}) or {})
+        except Exception:
+            self.did_routes = {}
         
         # Provider templates are safe to use for readiness/capability inspection, but
         # MUST NOT be used for per-call sessions (providers keep call-specific state).
@@ -2396,6 +2401,32 @@ class Engine:
         channel_name = channel.get('name', '')
         return channel_name.startswith('UnicastRTP/')
 
+    def _normalize_called_number_for_routing(self, value: Optional[str]) -> str:
+        """Normalize a called number into a digits-only routing key."""
+        raw = str(value or "").strip()
+        if not raw:
+            return ""
+        return "".join(ch for ch in raw if ch.isdigit())
+
+    def _resolve_did_route(self, called_number: Optional[str]) -> Optional[Dict[str, Any]]:
+        """Resolve DID routing from config using exact match first, then digits-only fallback."""
+        if not self.did_routes:
+            return None
+
+        raw = str(called_number or "").strip()
+        if raw:
+            route = self.did_routes.get(raw)
+            if isinstance(route, dict):
+                return dict(route)
+
+        normalized = self._normalize_called_number_for_routing(raw)
+        if normalized:
+            route = self.did_routes.get(normalized)
+            if isinstance(route, dict):
+                return dict(route)
+
+        return None
+
     async def _find_caller_for_local(self, local_channel_id: str) -> Optional[str]:
         """Find the caller channel that corresponds to this Local channel."""
         # Check if we have a pending Local channel mapping
@@ -3137,6 +3168,52 @@ class Engine:
             logger.info("Called number captured",
                        call_id=caller_channel_id,
                        called_number=session.called_number)
+
+            if not is_outbound:
+                try:
+                    route = self._resolve_did_route(session.called_number)
+                    if route:
+                        existing_context = str(getattr(session, "context_name", "") or "").strip()
+                        route_context = str(route.get("context") or "").strip()
+                        route_workflow = str(route.get("workflow") or "").strip()
+                        route_language = str(route.get("language") or "").strip()
+
+                        context_updated = False
+                        if not existing_context and route_context:
+                            session.context_name = route_context
+                            context_updated = True
+                        if not getattr(session, "workflow_name", None) and route_workflow:
+                            session.workflow_name = route_workflow
+                        if not getattr(session, "language", None) and route_language:
+                            session.language = route_language
+
+                        await self._save_session(session)
+
+                        if context_updated and session.context_name:
+                            try:
+                                await self.ari_client.set_channel_var(
+                                    caller_channel_id,
+                                    "AI_CONTEXT",
+                                    session.context_name,
+                                )
+                            except Exception:
+                                logger.debug(
+                                    "Failed to mirror resolved AI_CONTEXT from DID route",
+                                    call_id=caller_channel_id,
+                                    exc_info=True,
+                                )
+
+                        logger.info(
+                            "DID route resolved",
+                            call_id=caller_channel_id,
+                            called_number=session.called_number,
+                            context_name=session.context_name,
+                            workflow_name=getattr(session, "workflow_name", None),
+                            language=getattr(session, "language", None),
+                            context_preserved=bool(existing_context),
+                        )
+                except Exception:
+                    logger.debug("DID route resolution failed", call_id=caller_channel_id, exc_info=True)
 
             # If outbound, pull outbound metadata from channel vars (set during origination).
             if is_outbound:

@@ -150,6 +150,10 @@ class Workflow(BaseModel):
         default=None,
         description="System instructions for the AI"
     )
+    language: Optional[str] = Field(
+        default=None,
+        description="Default language for workflow execution, e.g. fr-FR"
+    )
     # Tools this workflow can call
     tools: List[str] = Field(
         default_factory=list,

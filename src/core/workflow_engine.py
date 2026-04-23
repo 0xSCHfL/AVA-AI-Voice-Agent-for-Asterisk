@@ -130,6 +130,11 @@ class WorkflowEngine:
         # Override with any pre-existing pre_call_results
         self.variables.update(self.session.pre_call_results)
 
+        if not getattr(self.session, "language", None):
+            workflow_language = str(getattr(self.workflow, "language", "") or "").strip()
+            if workflow_language:
+                self.session.language = workflow_language
+
         logger.info(
             "Starting workflow",
             workflow=self.workflow_name,
@@ -503,6 +508,20 @@ class WorkflowEngine:
                     call_id=self.session.call_id,
                 )
 
+    def _get_workflow_language(self) -> str:
+        """Resolve workflow language from session first, then workflow config, then English."""
+        session_language = str(getattr(self.session, "language", "") or "").strip()
+        if session_language:
+            return session_language
+
+        workflow_language = ""
+        if self.workflow:
+            workflow_language = str(getattr(self.workflow, "language", "") or "").strip()
+        if workflow_language:
+            return workflow_language
+
+        return "en"
+
     async def _speak_and_wait(self, text: str) -> None:
         """
         Speak text via TTS using the engine's TTS pipeline and wait for completion.
@@ -549,12 +568,14 @@ class WorkflowEngine:
                 )
                 return
 
+            language = self._get_workflow_language()
+
             # Synthesize audio frames
             audio_frames = []
             async for frame in tts_adapter.synthesize(
                 self.session.call_id,
                 text,
-                {"language": "en"},
+                {"language": language},
             ):
                 audio_frames.append(frame)
 
@@ -582,6 +603,7 @@ class WorkflowEngine:
             logger.debug(
                 "Workflow spoke text",
                 call_id=self.session.call_id,
+                language=language,
                 text_len=len(text),
             )
 

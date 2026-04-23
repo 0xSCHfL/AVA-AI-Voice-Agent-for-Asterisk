@@ -29,6 +29,11 @@ barge_in:
   provider_output_suppress_chunk_extend_ms: 250
 config_version: 6
 farewell_hangup_delay_sec: 3
+did_routes:
+  '+33123456789':
+    context: fr_inbound
+    workflow: fr_welcome
+    language: fr-FR
 contexts:
   default:
     greeting: Hello
@@ -41,6 +46,21 @@ contexts:
       - When the caller indicates they are done, say a brief farewell, then use the hangup_call tool to end the call.
       - NEVER mention tools or the word "hangup_call" to the caller.
     provider: local
+    tools:
+      - hangup_call
+  fr_inbound:
+    greeting: Bonjour
+    profile: telephony_ulaw_8k
+    prompt: >-
+      Tu es Ava, une assistante vocale téléphonique en français. Réponds en
+      français, de façon claire et concise.
+
+
+      CALL ENDING:
+      - Quand l'appelant indique que la conversation est terminée, dis un bref
+        message de fin puis utilise l'outil hangup_call pour terminer l'appel.
+      - Ne mentionne jamais les outils à l'appelant.
+    pipeline: hybrid_elevenlabs
     tools:
       - hangup_call
   Tool_Example:
@@ -1200,6 +1220,15 @@ contexts:
       - hangup_call
       - mcp_weather_get_city
 default_provider: local_hybrid
+workflows:
+  fr_welcome:
+    description: French inbound welcome workflow
+    version: '1.0'
+    language: fr-FR
+    steps:
+      - id: greeting
+        type: prompt
+        prompt: Bonjour et bienvenue. Un instant s'il vous plaît.
 downstream_mode: stream
 external_media:
   codec: ulaw
