@@ -706,199 +706,476 @@ function ConfigPanel({ node, onClose, onChange, onDelete, allAgents }: {
     </div>
   );
 }
-// ── Split-and-Merge Branch Section ─────────────────────────────────────────────
+// ── Layout Engine — computes absolute X,Y positions for every node ────────────
+//
+// Philosophy: walk the tree recursively, measure the SUBTREE WIDTH of each node,
+// then center-place it. No flex, no CSS layout — pure math.
 
-function BranchSection({
-  branchLabels,
-  nodeId,
-  nodeChildren,
-  nodes,
-  selectedId,
-  onSelect,
-  onInsertBranchChild,
-  onInsertAfter,
-  onDeleteNode,
-  allAgents,
-}: {
-  branchLabels: string[];
-  nodeId: string;
-  nodeChildren: (string | null)[];
-  nodes: Record<string, IVRNode>;
-  selectedId: string | null;
-  onSelect: (id: string) => void;
-  onInsertBranchChild: (parentId: string, branchIdx: number, type: NodeType) => void;
-  onInsertAfter: (afterId: string, type: NodeType) => void;
-  onDeleteNode: (id: string) => void;
-  allAgents?: string[];
-}) {
-  const count = branchLabels.length;
-  // Two-column parallel layout
-  const gap = 48;
-  const colW = NODE_W;
-  const totalW = count * colW + (count - 1) * gap;
-  const cx = totalW / 2;
+const NODE_H = 56;        // card height
+const NODE_W_CONST = 240; // card width (renamed to avoid conflict)
+const H_GAP = 40;         // horizontal gap between sibling columns
+const V_GAP_NODE = 24;    // vertical gap between node bottom and next element
+const V_GAP_LABEL = 20;   // space for condition label
+const DOT_H = 16;         // insert dot height
+const LABEL_H = 24;       // condition label pill height
+const FORK_H = 32;        // fork vertical space (from node bottom to branch labels)
+const TEAL = '#0d9488';
 
-  // Branch section: split into parallel columns, then merge
+// ── Measured layout node ──────────────────────────────────────────────────────
+
+interface LayoutNode {
+  id: string;
+  x: number;        // center x
+  y: number;        // top y
+  width: number;    // subtree width (for parent centering)
+  height: number;   // subtree height
+  branchIdx?: number;
+  branchLabel?: string;
+  isBranchHead?: boolean;
+}
+
+interface LayoutEdge {
+  type: 'straight' | 'fork-h' | 'fork-v' | 'label';
+  x1: number; y1: number;
+  x2: number; y2: number;
+  label?: string;
+}
+
+interface InsertSlot {
+  id: string;          // unique key
+  x: number; y: number;
+  onInsert: (t: NodeType) => void;
+}
+
+interface Layout {
+  nodes: LayoutNode[];
+  edges: LayoutEdge[];
+  inserts: InsertSlot[];
+  totalWidth: number;
+  totalHeight: number;
+}
+
+// ── Measure subtree width ─────────────────────────────────────────────────────
+// Returns the total pixel width the subtree of this chain-head needs
+
+function measureChainWidth(
+  headId: string | null,
+  nodes: Record<string, IVRNode>
+): number {
+  if (!headId || !nodes[headId]) return NODE_W_CONST;
+  let maxW = 0;
+  let cur: string | null = headId;
+  while (cur && nodes[cur]) {
+    const node = nodes[cur];
+    const branchLabels = getBranchLabels(node);
+    if (branchLabels.length > 0) {
+      // width = sum of branch subtree widths + gaps
+      const branchWidths = branchLabels.map((_, i) => {
+        const childHead = node.children[i] ?? null;
+        return Math.max(NODE_W_CONST, measureChainWidth(childHead, nodes));
+      });
+      const total = branchWidths.reduce((a, b) => a + b, 0) + (branchLabels.length - 1) * H_GAP;
+      maxW = Math.max(maxW, total);
+    } else {
+      maxW = Math.max(maxW, NODE_W_CONST);
+    }
+    cur = node.next;
+  }
+  return Math.max(maxW, NODE_W_CONST);
+}
+
+// ── Build layout ──────────────────────────────────────────────────────────────
+// cx = horizontal center of this chain, startY = top y to begin placing
+
+function buildChainLayout(
+  headId: string | null,
+  allNodes: Record<string, IVRNode>,
+  cx: number,
+  startY: number,
+  layout: Layout,
+  callbacks: {
+    onInsertAtHead: (t: NodeType) => void;
+    onInsertAfter: (id: string, t: NodeType) => void;
+    onInsertBranchChild: (parentId: string, idx: number, t: NodeType) => void;
+  }
+): number /* returns bottom Y of entire chain */ {
+  let y = startY;
+
+  // Insert dot at top of chain
+  const insertId = `ins_top_${headId || 'root'}_${cx}_${y}`;
+  layout.inserts.push({ id: insertId, x: cx, y, onInsert: callbacks.onInsertAtHead });
+  y += DOT_H + 4;
+
+  // Walk the linked list
+  let cur: string | null = headId;
+  while (cur && allNodes[cur]) {
+    const node = allNodes[cur];
+    const branchLabels = getBranchLabels(node);
+    const hasBranches = branchLabels.length > 0;
+
+    // Line from insert dot (or previous) down to node
+    if (layout.edges.length > 0 || y > startY + DOT_H + 4) {
+      layout.edges.push({ type: 'straight', x1: cx, y1: y - 4, x2: cx, y2: y + V_GAP_NODE });
+    }
+    y += V_GAP_NODE;
+
+    // Place node card
+    layout.nodes.push({ id: node.id, x: cx, y, width: NODE_W_CONST, height: NODE_H });
+    y += NODE_H;
+
+    if (hasBranches) {
+      // Fork: vertical line down from node center
+      layout.edges.push({ type: 'straight', x1: cx, y1: y, x2: cx, y2: y + 10 });
+      y += 10;
+
+      // Dot at fork point
+      layout.inserts.push({ id: `dot_${node.id}`, x: cx, y, onInsert: () => {} });
+      y += 8;
+
+      // Compute widths for each branch
+      const branchWidths = branchLabels.map((_, i) => {
+        const childHead = node.children[i] ?? null;
+        return Math.max(NODE_W_CONST, measureChainWidth(childHead, allNodes));
+      });
+      const totalBranchW = branchWidths.reduce((a, b) => a + b, 0) + (branchLabels.length - 1) * H_GAP;
+
+      // Branch center X positions
+      const branchCXs: number[] = [];
+      let bx = cx - totalBranchW / 2;
+      for (let i = 0; i < branchLabels.length; i++) {
+        branchCXs.push(bx + branchWidths[i] / 2);
+        bx += branchWidths[i] + H_GAP;
+      }
+
+      // Horizontal bar line
+      const leftX = branchCXs[0];
+      const rightX = branchCXs[branchCXs.length - 1];
+      if (branchCXs.length > 1) {
+        layout.edges.push({ type: 'fork-h', x1: leftX, y1: y, x2: rightX, y2: y });
+      }
+
+      // Vertical drops to each branch + condition labels
+      const branchStartY = y + FORK_H;
+      let maxBranchBottomY = branchStartY;
+
+      for (let i = 0; i < branchLabels.length; i++) {
+        const bcx = branchCXs[i];
+        // Vertical drop from horizontal bar
+        layout.edges.push({ type: 'fork-v', x1: bcx, y1: y, x2: bcx, y2: branchStartY - LABEL_H - 4 });
+        // Condition label
+        layout.edges.push({ type: 'label', x1: bcx, y1: branchStartY - LABEL_H - 4, x2: bcx, y2: branchStartY - LABEL_H - 4, label: branchLabels[i] });
+        // Short line below label
+        layout.edges.push({ type: 'fork-v', x1: bcx, y1: branchStartY - 4, x2: bcx, y2: branchStartY });
+
+        const childHead = node.children[i] ?? null;
+        const childBottomY = buildChainLayout(
+          childHead,
+          allNodes,
+          bcx,
+          branchStartY,
+          layout,
+          {
+            onInsertAtHead: t => callbacks.onInsertBranchChild(node.id, i, t),
+            onInsertAfter: callbacks.onInsertAfter,
+            onInsertBranchChild: callbacks.onInsertBranchChild,
+          }
+        );
+        maxBranchBottomY = Math.max(maxBranchBottomY, childBottomY);
+      }
+
+      y = maxBranchBottomY + 8;
+    } else {
+      // Insert dot after node
+      const afterInsertId = `ins_after_${node.id}`;
+      layout.edges.push({ type: 'straight', x1: cx, y1: y, x2: cx, y2: y + 8 });
+      y += 8;
+      layout.inserts.push({
+        id: afterInsertId, x: cx, y,
+        onInsert: t => callbacks.onInsertAfter(node.id, t),
+      });
+      y += DOT_H + 4;
+    }
+
+    cur = node.next;
+  }
+
+  return y;
+}
+
+// ── InsertionPoint ─────────────────────────────────────────────────────────────
+
+function InsertionDot({ x, y, onInsert }: { x: number; y: number; onInsert: (t: NodeType) => void }) {
+  const [open, setOpen] = useState(false);
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-      {/* SVG: split lines from center going to each column */}
-      <svg width={totalW} height={20} style={{ display: 'block', flexShrink: 0 }}>
-        {branchLabels.map((_, i) => {
-          const x = i * (colW + gap) + colW / 2;
-          if (Math.abs(x - cx) < 1) return null;
-          return (
-            <path
-              key={i}
-              d={`M ${cx} 0 L ${cx} 8 Q ${cx} 14 ${x} 14 L ${x} 20`}
-              fill="none"
-              stroke="#0d9488"
-              strokeWidth={2}
-              strokeLinecap="round"
-            />
-          );
-        })}
-      </svg>
-
-      {/* Condition labels row */}
-      <div style={{ display: 'flex', gap, width: totalW, justifyContent: 'center' }}>
-        {branchLabels.map((label, i) => (
-          <div key={i} style={{ width: colW, display: 'flex', justifyContent: 'center' }}>
-            <ConditionLabel label={label} />
-          </div>
-        ))}
-      </div>
-
-      {/* Parallel vertical lines */}
-      <div style={{ display: 'flex', gap, alignItems: 'flex-start' }}>
-        {branchLabels.map((_, idx) => {
-          const childHead = nodeChildren[idx] ?? null;
-          return (
-            <div key={idx} style={{ width: colW, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-              {/* Branch chain — starts directly with InsertionPoint, no extra VLine */}
-              <ChainColumn
-                headId={childHead}
-                nodes={nodes}
-                selectedId={selectedId}
-                onSelect={onSelect}
-                onInsertAtHead={t => onInsertBranchChild(nodeId, idx, t)}
-                onInsertAfter={onInsertAfter}
-                onDeleteNode={onDeleteNode}
-                onInsertBranchChild={onInsertBranchChild}
-                allAgents={allAgents}
-              />
+    <g style={{ zIndex: 10 }}>
+      <foreignObject x={x - 9} y={y - 9} width={18} height={18} style={{ overflow: 'visible' }}>
+        <div style={{ position: 'relative' }}>
+          <button
+            onClick={() => setOpen(o => !o)}
+            style={{
+              width: 18, height: 18, borderRadius: '50%',
+              border: `2px solid ${TEAL}`,
+              background: open ? TEAL : 'white',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', fontSize: 13, color: open ? 'white' : TEAL,
+              fontWeight: 700, lineHeight: 1,
+            }}
+          >+</button>
+          {open && (
+            <div style={{
+              position: 'absolute', top: 22, left: '50%', transform: 'translateX(-50%)',
+              background: 'white', borderRadius: 12, boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
+              border: '1px solid #e5e7eb', minWidth: 200, zIndex: 100, overflow: 'hidden',
+            }}>
+              <div style={{ padding: '10px 14px 4px', fontSize: 10, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                Insert node
+              </div>
+              {(Object.keys(NODE_META) as NodeType[]).filter(t => t !== 'action').map(t => {
+                const m = NODE_META[t];
+                return (
+                  <button key={t}
+                    onClick={() => { onInsert(t); setOpen(false); }}
+                    style={{
+                      width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '8px 14px', background: 'none', border: 'none',
+                      cursor: 'pointer', textAlign: 'left',
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.background = '#f9fafb')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                  >
+                    <div style={{ width: 28, height: 28, borderRadius: 7, background: `${m.color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <span style={{ color: m.color }}>{m.icon}</span>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: '#111827' }}>{m.label}</div>
+                      <div style={{ fontSize: 11, color: '#9ca3af' }}>{m.desc}</div>
+                    </div>
+                  </button>
+                );
+              })}
+              <button onClick={() => setOpen(false)}
+                style={{ width: '100%', padding: '6px', fontSize: 11, color: '#9ca3af', background: 'none', border: 'none', borderTop: '1px solid #f3f4f6', cursor: 'pointer' }}>
+                Cancel
+              </button>
             </div>
-          );
-        })}
-      </div>
-
-      {/* Merge SVG — lines converge from each column back to center */}
-      <svg width={totalW} height={16} style={{ display: 'block', flexShrink: 0 }}>
-        {branchLabels.map((_, i) => {
-          const x = i * (colW + gap) + colW / 2;
-          if (Math.abs(x - cx) < 1) return null;
-          return (
-            <path
-              key={i}
-              d={`M ${x} 0 L ${x} 6 Q ${x} 12 ${cx} 12 L ${cx} 16`}
-              fill="none"
-              stroke="#0d9488"
-              strokeWidth={2}
-              strokeLinecap="round"
-            />
-          );
-        })}
-      </svg>
-      <ConnectorDot />
-    </div>
+          )}
+        </div>
+      </foreignObject>
+    </g>
   );
 }
 
-// ── Chain column ──────────────────────────────────────────────────────────────
+// ── SVG Canvas renderer ───────────────────────────────────────────────────────
 
-function ChainColumn({
-  headId,
-  nodes,
-  selectedId,
-  onSelect,
-  onInsertAfter,
-  onInsertAtHead,
-  onDeleteNode,
-  onInsertBranchChild,
-  allAgents,
+function FlowCanvas({
+  flow, selectedId, onSelect, onDeleteNode,
+  onInsertAtHead, onInsertAfter, onInsertBranchChild, allAgents,
 }: {
-  headId: string | null;
-  nodes: Record<string, IVRNode>;
+  flow: FlowState;
   selectedId: string | null;
   onSelect: (id: string) => void;
-  onInsertAfter: (afterId: string, type: NodeType) => void;
-  onInsertAtHead: (type: NodeType) => void;
   onDeleteNode: (id: string) => void;
-  onInsertBranchChild: (parentId: string, branchIdx: number, type: NodeType) => void;
+  onInsertAtHead: (t: NodeType) => void;
+  onInsertAfter: (afterId: string, t: NodeType) => void;
+  onInsertBranchChild: (parentId: string, idx: number, t: NodeType) => void;
   allAgents?: string[];
 }) {
-  const chain: string[] = [];
-  let cur = headId;
-  while (cur && nodes[cur]) {
-    chain.push(cur);
-    cur = nodes[cur].next;
-  }
+  const CANVAS_CX = 600;
+  const TOP_Y = 80;
+
+  // ── Fixed top node: Appel entrant ──
+  const topNodeY = TOP_Y;
+  const topNodeH = 44;
+
+  // ── Build layout ──
+  const layout: Layout = { nodes: [], edges: [], inserts: [], totalWidth: 0, totalHeight: 0 };
+  const chainStartY = topNodeY + topNodeH + 20;
+
+  const bottomY = buildChainLayout(
+    flow.rootHead,
+    flow.nodes,
+    CANVAS_CX,
+    chainStartY,
+    layout,
+    { onInsertAtHead, onInsertAfter, onInsertBranchChild }
+  );
+
+  // End call node
+  const endY = bottomY + 16;
+  const svgH = endY + 80;
+  const svgW = Math.max(1200, ...layout.nodes.map(n => n.x + n.width / 2 + 60), ...layout.nodes.map(n => n.x - n.width / 2 - 60).map(x => x < 0 ? 1200 : 1200));
+
+  // Compute actual bounds
+  const allX = [CANVAS_CX, ...layout.nodes.map(n => n.x)];
+  const minX = Math.min(...allX) - 200;
+  const maxX = Math.max(...allX) + 200;
+  const canvasW = Math.max(1200, maxX - minX);
+  const offsetX = -minX;
 
   return (
-    <div className="flex flex-col items-center">
-      <InsertionPoint onInsert={onInsertAtHead} />
-
-      {chain.map(nid => {
-        const node = nodes[nid];
-        const branchLabels = getBranchLabels(node);
-        const hasBranches = branchLabels.length > 0;
-
+    <svg
+      width={canvasW}
+      height={svgH + 80}
+      style={{ display: 'block', overflow: 'visible' }}
+    >
+      {/* Edges */}
+      {layout.edges.map((e, i) => {
+        if (e.type === 'label') {
+          return (
+            <foreignObject key={i} x={e.x1 + offsetX - 80} y={e.y1 - 14} width={160} height={28}>
+              <div style={{
+                display: 'flex', justifyContent: 'center',
+              }}>
+                <div style={{
+                  background: '#1e293b', color: 'white', fontSize: 10,
+                  fontWeight: 600, padding: '3px 10px', borderRadius: 20,
+                  whiteSpace: 'nowrap', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis',
+                }}>
+                  {e.label}
+                </div>
+              </div>
+            </foreignObject>
+          );
+        }
         return (
-          <div key={nid} className="flex flex-col items-center">
-            <InsertionPoint onInsert={onInsertAtHead} />
-
-            <LogicNode
-              node={node}
-              isSelected={selectedId === nid}
-              onClick={() => onSelect(nid)}
-              onDelete={() => onDeleteNode(nid)}
-            />
-
-            {hasBranches ? (
-              <BranchSection
-                branchLabels={branchLabels}
-                nodeId={nid}
-                nodeChildren={node.children}
-                nodes={nodes}
-                selectedId={selectedId}
-                onSelect={onSelect}
-                onInsertBranchChild={onInsertBranchChild}
-                onInsertAfter={onInsertAfter}
-                onDeleteNode={onDeleteNode}
-                allAgents={allAgents}
-              />
-            ) : (
-              <>
-                <VLine h={10} />
-                <InsertionPoint onInsert={t => onInsertAfter(nid, t)} />
-                {node.next && (() => {
-                  const nextId = node.next;
-                  return (
-                  <>
-                    <VLine h={14} />
-                    <LogicNode
-                      node={nodes[nextId]}
-                      isSelected={selectedId === nextId}
-                      onClick={() => onSelect(nextId)}
-                      onDelete={() => onDeleteNode(nextId)}
-                    />
-                  </>
-                  );
-                })()}
-              </>
-            )}
-          </div>
+          <line key={i}
+            x1={e.x1 + offsetX} y1={e.y1}
+            x2={e.x2 + offsetX} y2={e.y2}
+            stroke={TEAL} strokeWidth={2} strokeLinecap="round"
+          />
         );
       })}
+
+      {/* Appel entrant */}
+      <foreignObject x={CANVAS_CX + offsetX - NODE_W_CONST / 2} y={topNodeY} width={NODE_W_CONST} height={topNodeH}>
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10,
+          padding: '0 20px', height: topNodeH,
+          background: '#1e293b', borderRadius: 99,
+          color: 'white', fontSize: 14, fontWeight: 600,
+        }}>
+          <Phone style={{ width: 16, height: 16 }} />
+          Appel entrant
+        </div>
+      </foreignObject>
+
+      {/* Line from top node to chain */}
+      <line x1={CANVAS_CX + offsetX} y1={topNodeY + topNodeH} x2={CANVAS_CX + offsetX} y2={chainStartY} stroke={TEAL} strokeWidth={2} />
+
+      {/* Layout nodes — rendered as foreignObject cards */}
+      {layout.nodes.map(n => {
+        const node = flow.nodes[n.id];
+        if (!node) return null;
+        const m = NODE_META[node.type];
+        const isSelected = selectedId === n.id;
+        const subtitle = node.type === 'hours' ? node.timezone : node.type === 'date' ? node.dateTimezone : `${node.branches?.length || 0} option(s)`;
+        return (
+          <foreignObject key={n.id} x={n.x + offsetX - NODE_W_CONST / 2} y={n.y} width={NODE_W_CONST} height={NODE_H}>
+            <NodeCardSVG
+              node={node}
+              isSelected={isSelected}
+              onClick={() => onSelect(n.id)}
+              onDelete={() => onDeleteNode(n.id)}
+            />
+          </foreignObject>
+        );
+      })}
+
+      {/* Insert dots */}
+      {layout.inserts.filter(s => s.onInsert.toString() !== '() => {}').map(s => (
+        <InsertionDot key={s.id} x={s.x + offsetX} y={s.y} onInsert={s.onInsert} />
+      ))}
+
+      {/* Static dots (fork points) */}
+      {layout.inserts.filter(s => s.onInsert.toString() === '() => {}').map(s => (
+        <circle key={s.id} cx={s.x + offsetX} cy={s.y} r={5} fill="white" stroke={TEAL} strokeWidth={2} />
+      ))}
+
+      {/* Line to end call */}
+      <line x1={CANVAS_CX + offsetX} y1={bottomY} x2={CANVAS_CX + offsetX} y2={endY} stroke={TEAL} strokeWidth={2} />
+      <circle cx={CANVAS_CX + offsetX} cy={endY - 2} r={5} fill="white" stroke={TEAL} strokeWidth={2} />
+
+      {/* Terminer l'appel */}
+      <foreignObject x={CANVAS_CX + offsetX - NODE_W_CONST / 2} y={endY + 6} width={NODE_W_CONST} height={topNodeH}>
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10,
+          padding: '0 20px', height: topNodeH,
+          background: '#0d9488', borderRadius: 99,
+          color: 'white', fontSize: 14, fontWeight: 600,
+        }}>
+          <Phone style={{ width: 16, height: 16 }} />
+          Terminer l'appel
+        </div>
+      </foreignObject>
+    </svg>
+  );
+}
+
+// ── Node card rendered inside SVG foreignObject ───────────────────────────────
+
+function NodeCardSVG({ node, isSelected, onClick, onDelete }: {
+  node: IVRNode; isSelected: boolean; onClick: () => void; onDelete: () => void;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const m = NODE_META[node.type];
+  const subtitle = node.type === 'hours' ? node.timezone : node.type === 'date' ? node.dateTimezone : `${node.branches?.length || 0} option(s)`;
+
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 10,
+        padding: '0 12px', height: NODE_H,
+        width: NODE_W_CONST, boxSizing: 'border-box',
+        background: 'white', cursor: 'pointer',
+        border: `2px solid ${isSelected ? m.borderColor : m.borderColor + '60'}`,
+        borderRadius: 16,
+        boxShadow: isSelected ? `0 0 0 3px ${m.borderColor}30` : '0 1px 4px rgba(0,0,0,0.08)',
+        position: 'relative',
+      }}
+    >
+      <div style={{ width: 32, height: 32, borderRadius: 8, background: `${m.color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <span style={{ color: m.color }}>{m.icon}</span>
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.label}</div>
+        <div style={{ fontSize: 11, color: '#6b7280', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{subtitle}</div>
+      </div>
+      <div style={{ position: 'relative', flexShrink: 0 }}>
+        <button
+          onClick={e => { e.stopPropagation(); setMenuOpen(o => !o); }}
+          style={{ width: 24, height: 24, borderRadius: 6, border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af' }}
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
+            <circle cx="7" cy="2" r="1.3"/><circle cx="7" cy="7" r="1.3"/><circle cx="7" cy="12" r="1.3"/>
+          </svg>
+        </button>
+        {menuOpen && (
+          <div onClick={e => e.stopPropagation()} style={{
+            position: 'absolute', right: 0, top: 28, background: 'white',
+            borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.15)', border: '1px solid #e5e7eb',
+            minWidth: 150, zIndex: 100, overflow: 'hidden',
+          }}>
+            <button
+              onClick={() => { setMenuOpen(false); }}
+              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#374151' }}
+              onMouseEnter={e => (e.currentTarget.style.background = '#f9fafb')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+            >
+              <Copy style={{ width: 14, height: 14 }} /> Copy
+            </button>
+            <div style={{ borderTop: '1px solid #f3f4f6' }} />
+            <button
+              onClick={() => { setMenuOpen(false); onDelete(); }}
+              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#ef4444' }}
+              onMouseEnter={e => (e.currentTarget.style.background = '#fef2f2')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+            >
+              <Trash2 style={{ width: 14, height: 14 }} /> Delete
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -1095,32 +1372,16 @@ export default function IVRCanvas({
               className="flex flex-col items-center transition-transform origin-top"
               style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}
             >
-              {/* Incoming call — primary action node */}
-              <PrimaryNode label="Appel entrant" icon={<Phone className="w-4 h-4" />} />
-
-              <VLine h={20} />
-
-              {/* Root chain */}
-              <ChainColumn
-                headId={flow.rootHead}
-                nodes={flow.nodes}
+              <FlowCanvas
+                flow={flow}
                 selectedId={selectedId}
                 onSelect={setSelectedId}
+                onDeleteNode={deleteNode}
                 onInsertAtHead={insertAtRootHead}
                 onInsertAfter={insertAfter}
-                onDeleteNode={deleteNode}
                 onInsertBranchChild={insertBranchChild}
                 allAgents={allAgents}
               />
-
-              <VLine h={16} />
-              {lastChainNodeId
-                ? <InsertionPoint onInsert={t => insertAfter(lastChainNodeId, t)} />
-                : <ConnectorDot />}
-              <VLine h={10} />
-
-              {/* Root-level end */}
-              <ActionCard label="Terminer l'appel" />
             </div>
           </div>
 
