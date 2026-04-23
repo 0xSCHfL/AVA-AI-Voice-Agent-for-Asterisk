@@ -540,6 +540,41 @@ const PipelinePanel = ({ value, onChange, onClose, mark }) => {
   );
 };
 
+// ─── Language Panel ───────────────────────────────────────────────────────────
+
+const WORKFLOW_LANGUAGES = ['en-US', 'en-GB', 'fr-FR', 'es-ES', 'de-DE', 'it-IT', 'pt-BR', 'ar-SA'];
+
+const LanguagePanel = ({ value, onChange, onClose, mark }) => (
+  <div style={{ position: 'absolute', inset: 0, background: '#00000060', zIndex: 400, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: 60 }} onClick={onClose}>
+    <div style={{ background: '#0a0f1a', border: '1px solid #1e2d3d', borderRadius: 12, width: 420, display: 'flex', flexDirection: 'column', boxShadow: '0 24px 64px #000e', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '18px 20px 14px', borderBottom: '1px solid #111a26' }}>
+        <div style={{ width: 28, height: 28, borderRadius: 7, background: '#10b98120', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981' }}>
+          🌐
+        </div>
+        <span style={{ color: '#e2e8f0', fontSize: 15, fontWeight: 700, flex: 1 }}>Workflow Language</span>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#475569', padding: 4 }}><X size={16}/></button>
+      </div>
+      <div style={{ padding: '18px 20px 24px' }}>
+        <div style={{ color: '#94a3b8', fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Default Language</div>
+        <div style={{ color: '#334155', fontSize: 11, marginBottom: 12 }}>Saved as the workflow-level runtime language.</div>
+        <div style={{ position: 'relative' }}>
+          <select
+            value={value || ''}
+            onChange={e => { onChange(e.target.value); mark(); }}
+            style={{ width: '100%', background: '#0d1520', border: '1px solid #1e2d3d', borderRadius: 8, color: value ? '#cbd5e1' : '#64748b', fontSize: 12, fontFamily: 'inherit', padding: '8px 12px', outline: 'none', appearance: 'none', cursor: 'pointer' }}
+          >
+            <option value="">— None —</option>
+            {WORKFLOW_LANGUAGES.map(lang => <option key={lang} value={lang}>{lang}</option>)}
+          </select>
+          <div style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#475569' }}>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
 // ─── Tools Panel ──────────────────────────────────────────────────────────────
 
 const TOOL_OPTIONS = [
@@ -580,7 +615,7 @@ const ToolsPanel = ({ value = [], onChange, onClose, mark }) => {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-const WorkflowCanvas = ({ workflowName: initialWorkflowName = 'Untitled Workflow', initialNodes, initialEdges, initialProvider, initialPipeline, initialPrompt, initialTools, initialGlobalPrompt, initialGlobalVoiceProvider, initialGlobalVoiceName, initialContext, onSave, onClose }) => {
+const WorkflowCanvas = ({ workflowName: initialWorkflowName = 'Untitled Workflow', initialNodes, initialEdges, initialProvider, initialPipeline, initialPrompt, initialLanguage, initialTools, initialGlobalPrompt, initialGlobalVoiceProvider, initialGlobalVoiceName, initialContext, onSave, onClose }) => {
   const [wfId] = useState(() => shortUuid());
   const [wfName, setWfName] = useState(initialWorkflowName);
   const [editingName, setEditingName] = useState(false);
@@ -609,12 +644,14 @@ const WorkflowCanvas = ({ workflowName: initialWorkflowName = 'Untitled Workflow
   const [showGlobalVoice, setShowGlobalVoice] = useState(false);
   const [showProvider, setShowProvider] = useState(false);
   const [showPipeline, setShowPipeline] = useState(false);
+  const [showLanguage, setShowLanguage] = useState(false);
   const [showTools, setShowTools] = useState(false);
   const [globalPrompt, setGlobalPrompt] = useState(initialPrompt || initialGlobalPrompt || '');
   const [globalVoiceProvider, setGlobalVoiceProvider] = useState(initialGlobalVoiceProvider || 'Vapi');
   const [globalVoiceName, setGlobalVoiceName] = useState(initialGlobalVoiceName || 'Elliot');
   const [provider, setProvider] = useState(initialProvider || '');
   const [pipeline, setPipeline] = useState(initialPipeline || '');
+  const [language, setLanguage] = useState(initialLanguage || '');
   const [tools, setTools] = useState<string[]>(initialTools || []);
   const [editingEdge, setEditingEdge] = useState(null);
   const [bindingContext, setBindingContext] = useState(initialContext || '');
@@ -918,7 +955,7 @@ const WorkflowCanvas = ({ workflowName: initialWorkflowName = 'Untitled Workflow
   const handleSave = async () => {
     setSaving(true);
     const steps = nodes.filter(n => !n.isStart).map(n => ({ id: n.id, type: n.type, label: n.label, ...n.data, next: edges.find(e => e.from === n.id)?.to }));
-    await onSave?.({ steps, nodes, edges, provider, pipeline, prompt: globalPrompt, tools, globalVoiceProvider, globalVoiceName, context: bindingContext, name: wfName });
+    await onSave?.({ steps, nodes, edges, provider, pipeline, prompt: globalPrompt, language, tools, globalVoiceProvider, globalVoiceName, context: bindingContext, name: wfName });
     setSaving(false); setUnsaved(false);
   };
 
@@ -1049,6 +1086,7 @@ const WorkflowCanvas = ({ workflowName: initialWorkflowName = 'Untitled Workflow
           {showGlobalVoice && <GlobalVoicePanel provider={globalVoiceProvider} voice={globalVoiceName} onProviderChange={setGlobalVoiceProvider} onVoiceChange={setGlobalVoiceName} onClose={() => setShowGlobalVoice(false)} mark={mark} />}
           {showProvider && <ProviderPanel value={provider} onChange={setProvider} onClose={() => setShowProvider(false)} mark={mark} />}
           {showPipeline && <PipelinePanel value={pipeline} onChange={setPipeline} onClose={() => setShowPipeline(false)} mark={mark} />}
+          {showLanguage && <LanguagePanel value={language} onChange={setLanguage} onClose={() => setShowLanguage(false)} mark={mark} />}
           {showTools && <ToolsPanel value={tools} onChange={setTools} onClose={() => setShowTools(false)} mark={mark} />}
 
           {/* Sidebar buttons */}
@@ -1067,12 +1105,13 @@ const WorkflowCanvas = ({ workflowName: initialWorkflowName = 'Untitled Workflow
               <Plus size={14} color="#10b981" /> Add a Node
             </button>
             {[
-              { label: 'Global Prompt', icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>, action: () => { setShowGlobalPrompt(v => !v); setShowGlobalVoice(false); setShowProvider(false); setShowPipeline(false); setShowTools(false); setShowVariables(false); setShowAddPanel(false); }, active: showGlobalPrompt },
-              { label: 'Global Voice', icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>, action: () => { setShowGlobalVoice(v => !v); setShowGlobalPrompt(false); setShowProvider(false); setShowPipeline(false); setShowTools(false); setShowVariables(false); setShowAddPanel(false); }, active: showGlobalVoice },
-              { label: 'Provider', icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>, action: () => { setShowProvider(v => !v); setShowGlobalPrompt(false); setShowGlobalVoice(false); setShowPipeline(false); setShowTools(false); setShowVariables(false); setShowAddPanel(false); }, active: showProvider },
-              { label: 'Pipeline', icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>, action: () => { setShowPipeline(v => !v); setShowGlobalPrompt(false); setShowGlobalVoice(false); setShowProvider(false); setShowTools(false); setShowVariables(false); setShowAddPanel(false); }, active: showPipeline },
-              { label: 'Tools', icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>, action: () => { setShowTools(v => !v); setShowGlobalPrompt(false); setShowGlobalVoice(false); setShowProvider(false); setShowPipeline(false); setShowVariables(false); setShowAddPanel(false); }, active: showTools },
-              { label: 'Variables', icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>, action: () => { setShowVariables(v => !v); setShowGlobalPrompt(false); setShowGlobalVoice(false); setShowProvider(false); setShowPipeline(false); setShowTools(false); setShowAddPanel(false); }, active: showVariables },
+              { label: 'Global Prompt', icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>, action: () => { setShowGlobalPrompt(v => !v); setShowGlobalVoice(false); setShowProvider(false); setShowPipeline(false); setShowLanguage(false); setShowTools(false); setShowVariables(false); setShowAddPanel(false); }, active: showGlobalPrompt },
+              { label: 'Global Voice', icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>, action: () => { setShowGlobalVoice(v => !v); setShowGlobalPrompt(false); setShowProvider(false); setShowPipeline(false); setShowLanguage(false); setShowTools(false); setShowVariables(false); setShowAddPanel(false); }, active: showGlobalVoice },
+              { label: 'Provider', icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>, action: () => { setShowProvider(v => !v); setShowGlobalPrompt(false); setShowGlobalVoice(false); setShowPipeline(false); setShowLanguage(false); setShowTools(false); setShowVariables(false); setShowAddPanel(false); }, active: showProvider },
+              { label: 'Pipeline', icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>, action: () => { setShowPipeline(v => !v); setShowGlobalPrompt(false); setShowGlobalVoice(false); setShowProvider(false); setShowLanguage(false); setShowTools(false); setShowVariables(false); setShowAddPanel(false); }, active: showPipeline },
+              { label: 'Language', icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9"/><path d="M16.5 3H7a2 2 0 0 0-2 2v14"/><path d="M7 7h10"/><path d="M7 11h8"/><path d="M7 15h6"/></svg>, action: () => { setShowLanguage(v => !v); setShowGlobalPrompt(false); setShowGlobalVoice(false); setShowProvider(false); setShowPipeline(false); setShowTools(false); setShowVariables(false); setShowAddPanel(false); }, active: showLanguage },
+              { label: 'Tools', icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>, action: () => { setShowTools(v => !v); setShowGlobalPrompt(false); setShowGlobalVoice(false); setShowProvider(false); setShowPipeline(false); setShowLanguage(false); setShowVariables(false); setShowAddPanel(false); }, active: showTools },
+              { label: 'Variables', icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>, action: () => { setShowVariables(v => !v); setShowGlobalPrompt(false); setShowGlobalVoice(false); setShowProvider(false); setShowPipeline(false); setShowLanguage(false); setShowTools(false); setShowAddPanel(false); }, active: showVariables },
             ].map((btn, i) => (
               <button key={i} onClick={btn.action} style={{ display: 'flex', alignItems: 'center', gap: 8, background: btn.active ? '#10b98118' : '#0d1520', border: `1px solid ${btn.active ? '#10b98150' : '#1e2d3d'}`, borderRadius: 8, cursor: 'pointer', color: btn.active ? '#10b981' : '#94a3b8', padding: '8px 16px', fontSize: 12, fontWeight: 500, fontFamily: 'inherit', whiteSpace: 'nowrap' }}
                 onMouseEnter={e => { if (!btn.active) e.currentTarget.style.borderColor = '#2a3d52'; }}

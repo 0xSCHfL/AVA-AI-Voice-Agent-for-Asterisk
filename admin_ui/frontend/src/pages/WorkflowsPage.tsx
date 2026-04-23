@@ -96,7 +96,7 @@ const WorkflowsPage = () => {
     }
   };
 
-  const handleSaveCanvas = async ({ steps, canvas, provider, pipeline, prompt, tools, globalPrompt, globalVoiceProvider, globalVoiceName, context }: { steps: any[]; canvas: { nodes: any[]; edges: any[] }; provider?: string; pipeline?: string; prompt?: string; tools?: string[]; globalPrompt?: string; globalVoiceProvider?: string; globalVoiceName?: string; context?: string }, name: string) => {
+  const handleSaveCanvas = async ({ steps, canvas, provider, pipeline, prompt, language, tools, globalPrompt, globalVoiceProvider, globalVoiceName, context }: { steps: any[]; canvas: { nodes: any[]; edges: any[] }; provider?: string; pipeline?: string; prompt?: string; language?: string | null; tools?: string[]; globalPrompt?: string; globalVoiceProvider?: string; globalVoiceName?: string; context?: string }, name: string) => {
     const wf = {
       name,
       description: workflowsData[name]?.description || '',
@@ -107,6 +107,7 @@ const WorkflowsPage = () => {
       provider,
       pipeline,
       prompt: prompt || globalPrompt,
+      language: language || null,
       tools: tools || [],
       global_prompt: prompt || globalPrompt,
       global_voice_provider: globalVoiceProvider,
@@ -169,6 +170,7 @@ const WorkflowsPage = () => {
         variables: source.variables || {},
         steps: source.steps || [],
         canvas: source.canvas || null,
+        language: source.language || null,
         global_prompt: source.global_prompt || '',
         global_voice_provider: source.global_voice_provider || 'Vapi',
         global_voice_name: source.global_voice_name || 'Elliot',
@@ -310,17 +312,18 @@ const WorkflowsPage = () => {
         initialProvider={wf.provider}
         initialPipeline={wf.pipeline}
         initialPrompt={wf.prompt}
+        initialLanguage={wf.language}
         initialTools={wf.tools}
         initialGlobalPrompt={wf.global_prompt}
         initialGlobalVoiceProvider={wf.global_voice_provider}
         initialGlobalVoiceName={wf.global_voice_name}
         initialContext={wf.context}
         onSave={(data) => {
-          const { steps, nodes, edges, provider, pipeline, prompt, tools, globalPrompt, globalVoiceProvider, globalVoiceName, context, name: newName } = data as { steps: any[]; nodes: any[]; edges: any[]; provider?: string; pipeline?: string; prompt?: string; tools?: string[]; globalPrompt?: string; globalVoiceProvider?: string; globalVoiceName?: string; context?: string; name?: string };
+          const { steps, nodes, edges, provider, pipeline, prompt, language, tools, globalPrompt, globalVoiceProvider, globalVoiceName, context, name: newName } = data as { steps: any[]; nodes: any[]; edges: any[]; provider?: string; pipeline?: string; prompt?: string; language?: string | null; tools?: string[]; globalPrompt?: string; globalVoiceProvider?: string; globalVoiceName?: string; context?: string; name?: string };
           if (newName && newName !== canvasWorkflow) {
-            handleRenameWorkflow(canvasWorkflow, newName, { steps, canvas: { nodes, edges }, provider, pipeline, prompt, tools, globalPrompt, globalVoiceProvider, globalVoiceName, context });
+            handleRenameWorkflow(canvasWorkflow, newName, { steps, canvas: { nodes, edges }, provider, pipeline, prompt, language, tools, globalPrompt, globalVoiceProvider, globalVoiceName, context });
           } else {
-            handleSaveCanvas({ steps, canvas: { nodes, edges }, provider, pipeline, prompt, tools, globalPrompt, globalVoiceProvider, globalVoiceName, context }, canvasWorkflow);
+            handleSaveCanvas({ steps, canvas: { nodes, edges }, provider, pipeline, prompt, language, tools, globalPrompt, globalVoiceProvider, globalVoiceName, context }, canvasWorkflow);
           }
         }}
         onClose={() => setCanvasWorkflow(null)}
