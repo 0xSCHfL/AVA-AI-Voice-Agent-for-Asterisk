@@ -719,6 +719,7 @@ const V_GAP_LABEL = 20;   // space for condition label
 const DOT_H = 16;         // insert dot height
 const LABEL_H = 24;       // condition label pill height
 const FORK_H = 32;        // fork vertical space (from node bottom to branch labels)
+const DOT_GAP = 16;       // vertical space between insert dot and node/edge
 const TEAL = '#0d9488';
 
 // ── Measured layout node ──────────────────────────────────────────────────────
@@ -804,7 +805,7 @@ function buildChainLayout(
   // Insert dot at top of chain
   const insertId = `ins_top_${headId || 'root'}_${cx}_${y}`;
   layout.inserts.push({ id: insertId, x: cx, y, onInsert: callbacks.onInsertAtHead });
-  y += DOT_H + 4;
+  y += DOT_H + DOT_GAP;
 
   // Walk the linked list
   let cur: string | null = headId;
@@ -814,8 +815,8 @@ function buildChainLayout(
     const hasBranches = branchLabels.length > 0;
 
     // Line from insert dot (or previous) down to node
-    if (layout.edges.length > 0 || y > startY + DOT_H + 4) {
-      layout.edges.push({ type: 'straight', x1: cx, y1: y - 4, x2: cx, y2: y + V_GAP_NODE });
+    if (layout.edges.length > 0 || y > startY + DOT_H + DOT_GAP) {
+      layout.edges.push({ type: 'straight', x1: cx, y1: y - DOT_GAP, x2: cx, y2: y + V_GAP_NODE });
     }
     y += V_GAP_NODE;
 
@@ -825,12 +826,12 @@ function buildChainLayout(
 
     if (hasBranches) {
       // Fork: vertical line down from node center
-      layout.edges.push({ type: 'straight', x1: cx, y1: y, x2: cx, y2: y + 10 });
-      y += 10;
+      layout.edges.push({ type: 'straight', x1: cx, y1: y, x2: cx, y2: y + 10 + DOT_GAP });
+      y += 10 + DOT_GAP;
 
       // Dot at fork point
       layout.inserts.push({ id: `dot_${node.id}`, x: cx, y, onInsert: () => {} });
-      y += 8;
+      y += DOT_H + DOT_GAP;
 
       // Compute widths for each branch
       const branchWidths = branchLabels.map((_, i) => {
@@ -887,13 +888,13 @@ function buildChainLayout(
     } else {
       // Insert dot after node
       const afterInsertId = `ins_after_${node.id}`;
-      layout.edges.push({ type: 'straight', x1: cx, y1: y, x2: cx, y2: y + 8 });
-      y += 8;
+      layout.edges.push({ type: 'straight', x1: cx, y1: y, x2: cx, y2: y + DOT_GAP });
+      y += DOT_GAP;
       layout.inserts.push({
         id: afterInsertId, x: cx, y,
         onInsert: t => callbacks.onInsertAfter(node.id, t),
       });
-      y += DOT_H + 4;
+      y += DOT_H + DOT_GAP;
     }
 
     cur = node.next;
