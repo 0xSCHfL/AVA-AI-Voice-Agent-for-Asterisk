@@ -816,10 +816,8 @@ function buildChainLayout(
 
     // Line from insert dot (or previous) down to node
     if (layout.edges.length > 0 || y > startY + DOT_H + DOT_GAP) {
-      layout.edges.push({ type: 'straight', x1: cx, y1: y - DOT_GAP, x2: cx, y2: y + V_GAP_NODE });
+      layout.edges.push({ type: 'straight', x1: cx, y1: y - DOT_GAP, x2: cx, y2: y });
     }
-    y += V_GAP_NODE;
-
     // Place node card
     layout.nodes.push({ id: node.id, x: cx, y, width: NODE_W_CONST, height: NODE_H });
     y += NODE_H;
