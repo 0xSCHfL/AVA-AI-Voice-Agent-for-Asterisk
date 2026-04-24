@@ -48,7 +48,7 @@ contexts:
     provider: local
     tools:
       - hangup_call
-fr_inbound:
+  fr_inbound:
     greeting: "Bonjour, vous êtes connecté avec AVA. Comment puis-je vous aider ?"
     profile: telephony_ulaw_8k
     prompt: >-
