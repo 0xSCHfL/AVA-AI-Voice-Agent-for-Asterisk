@@ -1225,15 +1225,14 @@ workflows:
     description: French inbound welcome workflow
     version: '1.0'
     language: fr-FR
-    nodes:
+    steps:
       - id: start
-        first_message: Bonjour, ici Ri Swipe. Est-ce que vous m'entendez bien ?
-        edges:
-          - label: oui
-            target: second
+        type: prompt
+        prompt: Bonjour, ici Ri Swipe. Est-ce que vous m'entendez bien ?
+        next: second
       - id: second
-        first_message: Parfait, le workflow français fonctionne.
-    downstream_mode: stream
+        type: prompt
+        prompt: Parfait, le workflow français fonctionne.
 external_media:
   codec: ulaw
   direction: both
