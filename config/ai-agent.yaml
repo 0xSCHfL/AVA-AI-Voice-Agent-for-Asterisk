@@ -48,8 +48,8 @@ contexts:
     provider: local
     tools:
       - hangup_call
-  fr_inbound:
-    greeting: ''
+fr_inbound:
+    greeting: "Bonjour, vous êtes connecté avec AVA. Comment puis-je vous aider ?"
     profile: telephony_ulaw_8k
     prompt: >-
       Tu es Ava, une assistante vocale téléphonique en français. Réponds en
@@ -59,9 +59,11 @@ contexts:
       CALL ENDING:
       - Quand l'appelant indique que la conversation est terminée, dis un bref
         message de fin puis utilise l'outil hangup_call pour terminer l'appel.
-      - Ne mentionne jamais les outils à l'appelant.
+        - Ne mentionne jamais les outils à l'appelant.
     pipeline: hybrid_openai_tts
     tools:
+      - unified_transfer
+      - check_extension_status
       - hangup_call
   fr_documents:
     greeting: ''
