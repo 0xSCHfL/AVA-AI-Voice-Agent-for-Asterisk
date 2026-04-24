@@ -49,7 +49,7 @@ contexts:
     tools:
       - hangup_call
   fr_inbound:
-    greeting: Bonjour
+    greeting: ''
     profile: telephony_ulaw_8k
     prompt: >-
       Tu es Ava, une assistante vocale téléphonique en français. Réponds en
@@ -1225,11 +1225,15 @@ workflows:
     description: French inbound welcome workflow
     version: '1.0'
     language: fr-FR
-    steps:
-      - id: greeting
-        type: prompt
-        prompt: Bonjour et bienvenue. Un instant s'il vous plaît.
-downstream_mode: stream
+    nodes:
+      - id: start
+        first_message: Bonjour, ici Ri Swipe. Est-ce que vous m'entendez bien ?
+        edges:
+          - label: oui
+            target: second
+      - id: second
+        first_message: Parfait, le workflow français fonctionne.
+    downstream_mode: stream
 external_media:
   codec: ulaw
   direction: both
