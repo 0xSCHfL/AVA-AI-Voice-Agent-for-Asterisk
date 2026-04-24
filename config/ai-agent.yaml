@@ -62,7 +62,7 @@ contexts:
         - Ne mentionne jamais les outils à l'appelant.
     provider: google_live
     tools:
-      - unified_transfer
+      - transfer
       - check_extension_status
       - hangup_call
   fr_documents:
