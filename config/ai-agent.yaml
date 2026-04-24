@@ -65,7 +65,7 @@ contexts:
       - unified_transfer
       - check_extension_status
       - hangup_call
-  fr_documents:
+fr_documents:
     greeting: ''
     profile: telephony_ulaw_8k
     prompt: >-
@@ -76,11 +76,11 @@ contexts:
       CALL ENDING:
       - Quand l'appelant indique que la conversation est terminée, dis un bref message de fin
         puis utilise l'outil hangup_call pour terminer l'appel.
-      - Ne mentionne jamais les outils à l'appelant.
-    pipeline: hybrid_openai_tts
+        - Ne mentionne jamais les outils à l'appelant.
+    provider: google_live
     tools:
       - hangup_call
-  fr_subscription:
+fr_subscription:
     greeting: ''
     profile: telephony_ulaw_8k
     prompt: >-
@@ -90,12 +90,12 @@ contexts:
 
       CALL ENDING:
       - Quand l'appelant indique que la conversation est terminée, dis un bref message de fin
-        puis utilise l'outil hangup_call pour terminer l'appel.
+        puis utilize l'outil hangup_call pour terminer l'appel.
       - Ne mentionne jamais les outils à l'appelant.
-    pipeline: hybrid_openai_tts
+    provider: google_live
     tools:
       - hangup_call
-  fr_rewards:
+fr_rewards:
     greeting: ''
     profile: telephony_ulaw_8k
     prompt: >-
@@ -107,10 +107,10 @@ contexts:
       - Quand l'appelant indique que la conversation est terminée, dis un bref message de fin
         puis utilise l'outil hangup_call pour terminer l'appel.
       - Ne mentionne jamais les outils à l'appelant.
-    pipeline: hybrid_openai_tts
+    provider: google_live
     tools:
       - hangup_call
-  fr_b2b:
+fr_b2b:
     greeting: ''
     profile: telephony_ulaw_8k
     prompt: >-
@@ -122,7 +122,7 @@ contexts:
       - Quand l'appelant indique que la conversation est terminée, dis un bref message de fin
         puis utilise l'outil hangup_call pour terminer l'appel.
       - Ne mentionne jamais les outils à l'appelant.
-    pipeline: hybrid_openai_tts
+    provider: google_live
     tools:
       - hangup_call
   fr_others:
@@ -136,7 +136,7 @@ contexts:
       - Quand l'appelant indique que la conversation est terminée, dis un bref message de fin
         puis utilise l'outil hangup_call pour terminer l'appel.
       - Ne mentionne jamais les outils à l'appelant.
-    pipeline: hybrid_openai_tts
+    provider: google_live
     tools:
       - hangup_call
   Tool_Example:
@@ -1301,7 +1301,7 @@ workflows:
     description: French inbound router - routes to specialist contexts
     version: '1.0'
     language: fr-FR
-    pipeline: hybrid_openai_tts
+    provider: google_live
     steps:
       - id: welcome
         type: prompt
