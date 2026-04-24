@@ -17,7 +17,7 @@ import re
 import tempfile
 import time
 import unicodedata
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Tuple
 
 from .workflow_models import (
     Workflow,
@@ -541,9 +541,9 @@ class WorkflowEngine:
                 )
 
             await self._record_user_utterance(user_response)
-            next_step_id = self._match_conditions_from_transcript(step.conditions, user_response)
+            next_step_id, target_context = self._match_conditions_from_transcript(step.conditions, user_response)
             if next_step_id:
-                return StepResult(status="routing", next_step_id=next_step_id)
+                return StepResult(status="routing", next_step_id=next_step_id, target_context=target_context)
 
             fallback = step.default or step.next
             if fallback:
@@ -560,12 +560,20 @@ class WorkflowEngine:
                 return StepResult(
                     status="routing",
                     next_step_id=condition.goto,
+                    target_context=getattr(condition, 'target_context', None),
                 )
 
-        # No condition matched — use default
+        # No condition matched — use default (either target_context or end workflow)
+        default_target = step.default or step.next
+        # If default is a context name (no such step), treat it as target_context
+        if default_target and self.workflow.get_step_index(default_target) < 0:
+            return StepResult(
+                status="completed",
+                target_context=default_target,
+            )
         return StepResult(
             status="routing",
-            next_step_id=step.default or step.next,
+            next_step_id=default_target,
         )
 
     async def _execute_side_effect_actions(self, step: WorkflowStep) -> None:
