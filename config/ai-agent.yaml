@@ -32,7 +32,7 @@ farewell_hangup_delay_sec: 3
 did_routes:
   '+33123456789':
     context: fr_inbound
-    workflow: fr_welcome
+    workflow: fr_router
     language: fr-FR
 contexts:
   default:
@@ -59,6 +59,80 @@ contexts:
       CALL ENDING:
       - Quand l'appelant indique que la conversation est terminée, dis un bref
         message de fin puis utilise l'outil hangup_call pour terminer l'appel.
+      - Ne mentionne jamais les outils à l'appelant.
+    pipeline: hybrid_openai_tts
+    tools:
+      - hangup_call
+  fr_documents:
+    greeting: ''
+    profile: telephony_ulaw_8k
+    prompt: >-
+      Tu es Ava, assistante spécialisée dans les documents et les demandes administratives.
+      Réponds en français, de façon claire et concise. Tu peux aider avec les questions
+      sur les documents, les formulaires, les attestations, et les procédures administratives.
+
+      CALL ENDING:
+      - Quand l'appelant indique que la conversation est terminée, dis un bref message de fin
+        puis utilise l'outil hangup_call pour terminer l'appel.
+      - Ne mentionne jamais les outils à l'appelant.
+    pipeline: hybrid_openai_tts
+    tools:
+      - hangup_call
+  fr_subscription:
+    greeting: ''
+    profile: telephony_ulaw_8k
+    prompt: >-
+      Tu es Ava, assistante spécialisée dans les abonnements et les services.
+      Réponds en français, de façon claire et concise. Tu peux aider avec les questions
+      sur les abonnements, les renouvellements, les modifications, et les résiliations.
+
+      CALL ENDING:
+      - Quand l'appelant indique que la conversation est terminée, dis un bref message de fin
+        puis utilise l'outil hangup_call pour terminer l'appel.
+      - Ne mentionne jamais les outils à l'appelant.
+    pipeline: hybrid_openai_tts
+    tools:
+      - hangup_call
+  fr_rewards:
+    greeting: ''
+    profile: telephony_ulaw_8k
+    prompt: >-
+      Tu es Ava, assistante spécialisée dans les programmes de fidélité et les récompenses.
+      Réponds en français, de façon claire et concise. Tu peux aider avec les questions
+      sur les points de fidélité, les récompenses, les avantages membres, et les promotions.
+
+      CALL ENDING:
+      - Quand l'appelant indique que la conversation est terminée, dis un bref message de fin
+        puis utilise l'outil hangup_call pour terminer l'appel.
+      - Ne mentionne jamais les outils à l'appelant.
+    pipeline: hybrid_openai_tts
+    tools:
+      - hangup_call
+  fr_b2b:
+    greeting: ''
+    profile: telephony_ulaw_8k
+    prompt: >-
+      Tu es Ava, assistante spécialisée dans les relations B2B et les partenaires commerciaux.
+      Réponds en français, de façon claire et concise. Tu peux aider avec les questions
+      sur les partenariats, les devis, les contrats, et les services professionnels.
+
+      CALL ENDING:
+      - Quand l'appelant indique que la conversation est terminée, dis un bref message de fin
+        puis utilise l'outil hangup_call pour terminer l'appel.
+      - Ne mentionne jamais les outils à l'appelant.
+    pipeline: hybrid_openai_tts
+    tools:
+      - hangup_call
+  fr_others:
+    greeting: ''
+    profile: telephony_ulaw_8k
+    prompt: >-
+      Tu es Ava, assistante vocale téléphonique en français.
+      Réponds en français, de façon claire et concise.
+
+      CALL ENDING:
+      - Quand l'appelant indique que la conversation est terminée, dis un bref message de fin
+        puis utilise l'outil hangup_call pour terminer l'appel.
       - Ne mentionne jamais les outils à l'appelant.
     pipeline: hybrid_openai_tts
     tools:
@@ -1221,18 +1295,44 @@ contexts:
       - mcp_weather_get_city
 default_provider: local_hybrid
 workflows:
-  fr_welcome:
-    description: French inbound welcome workflow
+  fr_router:
+    description: French inbound router - routes to specialist contexts
     version: '1.0'
     language: fr-FR
+    pipeline: hybrid_openai_tts
     steps:
-      - id: start
+      - id: welcome
         type: prompt
-        prompt: Bonjour, ici Ri Swipe. Est-ce que vous m'entendez bien ?
-        next: second
-      - id: second
-        type: prompt
-        prompt: Parfait, le workflow français fonctionne.
+        prompt: Bonjour, vous êtes bien arrivé chez Ri Swipe. Je suis Ava, votre assistante vocale. Comment puis-je vous aider aujourd'hui ?
+      - id: route
+        type: branch
+        prompt: ''
+        conditions:
+          - if: documents
+            target_context: fr_documents
+          - if: document
+            target_context: fr_documents
+          - if: papier
+            target_context: fr_documents
+          - if: abonnement
+            target_context: fr_subscription
+          - if: subscribe
+            target_context: fr_subscription
+          - if: offre
+            target_context: fr_subscription
+          - if: rewards
+            target_context: fr_rewards
+          - if: fidélité
+            target_context: fr_rewards
+          - if: points
+            target_context: fr_rewards
+          - if: b2b
+            target_context: fr_b2b
+          - if: professionnel
+            target_context: fr_b2b
+          - if: entreprise
+            target_context: fr_b2b
+        default: fr_others
 external_media:
   codec: ulaw
   direction: both

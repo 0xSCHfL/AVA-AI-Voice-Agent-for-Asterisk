@@ -13318,6 +13318,26 @@ class Engine:
                         session.workflow_completed = True
                         session.workflow_variables = dict(workflow_result.variables)
                         session.workflow_terminated_reason = workflow_result.reason
+                        # Router workflow: switch context if target_context is set
+                        if getattr(workflow_result, 'target_context', None):
+                            session.context_name = workflow_result.target_context
+                            logger.info(
+                                "Workflow routing to context",
+                                workflow=workflow_name,
+                                target_context=workflow_result.target_context,
+                                call_id=call_id,
+                            )
+                            try:
+                                await self.ari_client.set_channel_var(
+                                    call_id,
+                                    "AI_CONTEXT",
+                                    workflow_result.target_context,
+                                )
+                            except Exception:
+                                logger.debug(
+                                    "Failed to set AI_CONTEXT channel var",
+                                    call_id=call_id,
+                                )
                         await self.session_store.upsert_call(session)
                 except Exception:
                     logger.debug(

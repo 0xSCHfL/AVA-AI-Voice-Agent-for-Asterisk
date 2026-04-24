@@ -34,7 +34,11 @@ class WorkflowStepAction(BaseModel):
 class WorkflowCondition(BaseModel):
     """A single if/got condition in a branch step."""
     if_: str = Field(alias="if", description="Condition expression, e.g. '{{claim_type}} == claim'")
-    goto: str = Field(description="Step ID to jump to if condition matches")
+    goto: Optional[str] = Field(default=None, description="Step ID to jump to if condition matches")
+    target_context: Optional[str] = Field(
+        default=None,
+        description="Context name to route to (for router workflows)"
+    )
 
     class Config:
         populate_by_name = True
@@ -104,6 +108,10 @@ class WorkflowStep(BaseModel):
     next: Optional[str] = Field(
         default=None,
         description="Fallthrough next step ID if no goto/conditions"
+    )
+    target_context: Optional[str] = Field(
+        default=None,
+        description="Context name to route to after this step completes (for router workflows)"
     )
 
 
@@ -214,6 +222,10 @@ class WorkflowResult(BaseModel):
         default=False,
         description="True if workflow terminated by hanging up"
     )
+    target_context: Optional[str] = Field(
+        default=None,
+        description="Context name to switch to for the provider session (for router workflows)"
+    )
     reason: Optional[str] = Field(
         default=None,
         description="Human-readable reason for termination"
@@ -241,6 +253,10 @@ class StepResult(BaseModel):
     next_step_id: Optional[str] = Field(
         default=None,
         description="Step ID to execute next (for routing status)"
+    )
+    target_context: Optional[str] = Field(
+        default=None,
+        description="Context to route to after this step (for router workflows)"
     )
     extracted_variables: Dict[str, str] = Field(
         default_factory=dict,

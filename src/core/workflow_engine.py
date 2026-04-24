@@ -105,6 +105,7 @@ class WorkflowEngine:
         self.steps_completed: int = 0
         self.step_history: list = []
         self._capturing_transcripts: bool = False
+        self._pending_target_context: Optional[str] = None  # For router workflows
 
     async def execute(self) -> WorkflowResult:
         """
@@ -169,6 +170,9 @@ class WorkflowEngine:
                 if result.status == "routing":
                     # Routing step decides the next step
                     next_id = result.next_step_id
+                    # Capture target_context for later use
+                    if getattr(result, 'target_context', None):
+                        self._pending_target_context = result.target_context
                     if next_id:
                         target_index = self.workflow.get_step_index(next_id)
                         if target_index >= 0:
@@ -222,10 +226,16 @@ class WorkflowEngine:
                 call_id=self.session.call_id,
                 steps_executed=self.steps_completed,
             )
+            # Use pending target_context from routing step, or final step's target_context
+            target_context = self._pending_target_context
+            if not target_context and self.workflow.steps:
+                last_step = self.workflow.steps[-1]
+                target_context = getattr(last_step, 'target_context', None)
             return WorkflowResult(
                 completed=True,
                 variables=self.variables,
                 steps_completed=self.steps_completed,
+                target_context=target_context,
             )
 
         except Exception as e:
@@ -312,9 +322,9 @@ class WorkflowEngine:
                 )
 
             await self._record_user_utterance(user_response)
-            next_step_id = self._match_conditions_from_transcript(step.conditions, user_response)
+            next_step_id, target_context = self._match_conditions_from_transcript(step.conditions, user_response)
             if next_step_id:
-                return StepResult(status="routing", next_step_id=next_step_id)
+                return StepResult(status="routing", next_step_id=next_step_id, target_context=target_context)
 
             fallback = step.default or step.next
             if fallback:
@@ -326,6 +336,7 @@ class WorkflowEngine:
             )
 
         if step.next:
+            return StepResult(status="routing", next_step_id=step.next)
             return StepResult(status="routing", next_step_id=step.next)
 
         return StepResult(status="completed", extracted_variables={})
@@ -1062,8 +1073,10 @@ class WorkflowEngine:
             for condition in conditions or []
         )
 
-    def _match_conditions_from_transcript(self, conditions, transcript: str) -> Optional[str]:
-        """Find the first condition whose label/expression matches the caller transcript."""
+    def _match_conditions_from_transcript(self, conditions, transcript: str) -> Tuple[Optional[str], Optional[str]]:
+        """Find the first condition whose label/expression matches the caller transcript.
+        Returns (next_step_id, target_context).
+        """
         for condition in conditions or []:
             raw_condition = getattr(condition, "if_", "") or ""
             matched = False
@@ -1079,11 +1092,12 @@ class WorkflowEngine:
                     call_id=self.session.call_id,
                     condition=raw_condition,
                     goto=condition.goto,
+                    target_context=getattr(condition, 'target_context', None),
                     transcript_preview=(transcript or "")[:80],
                 )
-                return condition.goto
+                return (condition.goto, getattr(condition, 'target_context', None))
 
-        return None
+        return (None, None)
 
     @staticmethod
     def _looks_like_condition_expression(expression: str) -> bool:
