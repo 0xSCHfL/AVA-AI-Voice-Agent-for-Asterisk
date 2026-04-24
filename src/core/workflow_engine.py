@@ -15,6 +15,8 @@ import json
 import logging
 import re
 import tempfile
+import time
+import unicodedata
 from typing import Optional, Dict, Any, List
 
 from .workflow_models import (
@@ -102,6 +104,7 @@ class WorkflowEngine:
         self.variables: Dict[str, str] = {}
         self.steps_completed: int = 0
         self.step_history: list = []
+        self._capturing_transcripts: bool = False
 
     async def execute(self) -> WorkflowResult:
         """
@@ -143,6 +146,7 @@ class WorkflowEngine:
         )
 
         try:
+            self._begin_transcript_capture()
             while self.current_step_index < len(self.workflow.steps):
                 step = self.workflow.steps[self.current_step_index]
                 result = await self._execute_step(step)
@@ -235,6 +239,8 @@ class WorkflowEngine:
                 completed=False,
                 reason=f"Workflow error: {e}",
             )
+        finally:
+            self._end_transcript_capture()
 
     async def _execute_step(self, step: WorkflowStep) -> StepResult:
         """
@@ -288,8 +294,39 @@ class WorkflowEngine:
         if not prompt:
             return StepResult(status="completed")
 
+        if step.conditions:
+            self._clear_pending_user_speech()
+
         # Speak the prompt
         await self._speak_and_wait(prompt)
+
+        if step.conditions:
+            user_response = await self._wait_for_user_speech()
+            if user_response is None:
+                fallback = step.default or step.next
+                if fallback:
+                    return StepResult(status="routing", next_step_id=fallback)
+                return StepResult(
+                    status="error",
+                    message=f"No caller speech received for workflow step '{step.id}'",
+                )
+
+            await self._record_user_utterance(user_response)
+            next_step_id = self._match_conditions_from_transcript(step.conditions, user_response)
+            if next_step_id:
+                return StepResult(status="routing", next_step_id=next_step_id)
+
+            fallback = step.default or step.next
+            if fallback:
+                return StepResult(status="routing", next_step_id=fallback)
+
+            return StepResult(
+                status="error",
+                message=f"No transition matched caller speech for workflow step '{step.id}'",
+            )
+
+        if step.next:
+            return StepResult(status="routing", next_step_id=step.next)
 
         return StepResult(status="completed", extracted_variables={})
 
@@ -332,6 +369,8 @@ class WorkflowEngine:
                         message="Max collect attempts reached",
                         extracted_variables={},
                     )
+
+            await self._record_user_utterance(user_response)
 
             # Extract entity from user response using LLM
             extracted = await self._extract_entity(user_response, entity_name)
@@ -470,8 +509,38 @@ class WorkflowEngine:
         if not step.conditions:
             # No conditions — just use default or next
             return StepResult(
-                status="completed",
+                status="routing",
                 next_step_id=step.default or step.next,
+            )
+
+        if self._conditions_need_transcript(step.conditions):
+            self._clear_pending_user_speech()
+            prompt = self._resolve_variables(step.prompt or "")
+            if prompt:
+                await self._speak_and_wait(prompt)
+
+            user_response = await self._wait_for_user_speech()
+            if user_response is None:
+                fallback = step.default or step.next
+                if fallback:
+                    return StepResult(status="routing", next_step_id=fallback)
+                return StepResult(
+                    status="error",
+                    message=f"No caller speech received for workflow branch '{step.id}'",
+                )
+
+            await self._record_user_utterance(user_response)
+            next_step_id = self._match_conditions_from_transcript(step.conditions, user_response)
+            if next_step_id:
+                return StepResult(status="routing", next_step_id=next_step_id)
+
+            fallback = step.default or step.next
+            if fallback:
+                return StepResult(status="routing", next_step_id=fallback)
+
+            return StepResult(
+                status="error",
+                message=f"No transition matched caller speech for workflow branch '{step.id}'",
             )
 
         for condition in step.conditions:
@@ -618,25 +687,55 @@ class WorkflowEngine:
         """
         Wait for user speech input and return transcribed text.
 
-        This method is a placeholder. In a real implementation, this would:
-        1. Wait for VAD to detect speech
-        2. Capture audio until silence
-        3. Send to STT for transcription
-
-        For now, returns None (no automatic speech capture implemented yet).
-        This would need integration with the audio stream from Asterisk.
+        V1 deliberately does not implement a separate STT stack. It waits on
+        the Engine's workflow transcript queue, which is fed by the existing
+        pipeline STT path while the workflow is active.
 
         Returns:
             Transcribed user speech, or None if no input
         """
-        # TODO: Integrate with actual audio capture/VAD from Asterisk
-        # This requires the audio socket or external media path to be active
-        # and passing audio to an STT adapter for transcription.
-        logger.debug(
-            "_wait_for_user_speech called (not yet implemented)",
+        if not self.engine:
+            logger.warning(
+                "Workflow speech wait has no engine reference",
+                call_id=self.session.call_id,
+            )
+            return None
+
+        try:
+            if hasattr(self.engine, "_ensure_pipeline_runner") and getattr(self.session, "pipeline_name", None):
+                await self.engine._ensure_pipeline_runner(self.session, forced=True)
+        except Exception:
+            logger.debug(
+                "Failed to ensure pipeline runner for workflow speech",
+                call_id=self.session.call_id,
+                exc_info=True,
+            )
+
+        wait_fn = getattr(self.engine, "_wait_for_workflow_transcript", None)
+        if not callable(wait_fn):
+            logger.warning(
+                "Workflow speech wait unavailable: engine has no transcript wait hook",
+                call_id=self.session.call_id,
+            )
+            return None
+
+        timeout_sec = self._speech_timeout_seconds()
+        transcript = await wait_fn(self.session.call_id, timeout_sec)
+        transcript = (transcript or "").strip() if transcript else ""
+        if not transcript:
+            logger.info(
+                "Workflow speech wait timed out or returned no transcript",
+                call_id=self.session.call_id,
+                timeout_sec=timeout_sec,
+            )
+            return None
+
+        logger.info(
+            "Workflow captured caller speech",
             call_id=self.session.call_id,
+            transcript_preview=transcript[:80],
         )
-        return None
+        return transcript
 
     async def _extract_entity(self, text: str, entity_name: str) -> Dict[str, str]:
         """
@@ -893,6 +992,149 @@ class WorkflowEngine:
             else:
                 result[k] = v
         return result
+
+    def _begin_transcript_capture(self) -> None:
+        """Register this workflow as the active consumer for final STT transcripts."""
+        if self._capturing_transcripts or not self.engine:
+            return
+        begin_fn = getattr(self.engine, "_begin_workflow_transcript_capture", None)
+        if callable(begin_fn):
+            begin_fn(self.session.call_id)
+            self._capturing_transcripts = True
+
+    def _end_transcript_capture(self) -> None:
+        """Release workflow transcript ownership so normal pipeline dialog can resume."""
+        if not self._capturing_transcripts or not self.engine:
+            return
+        end_fn = getattr(self.engine, "_end_workflow_transcript_capture", None)
+        if callable(end_fn):
+            end_fn(self.session.call_id)
+        self._capturing_transcripts = False
+
+    def _clear_pending_user_speech(self) -> None:
+        """Drop stale transcripts before a node starts listening for its own reply."""
+        if not self.engine:
+            return
+        clear_fn = getattr(self.engine, "_clear_workflow_transcripts", None)
+        if callable(clear_fn):
+            clear_fn(self.session.call_id)
+
+    def _speech_timeout_seconds(self) -> float:
+        """Resolve workflow speech timeout from variables, defaulting to a short V1 timeout."""
+        raw = self.variables.get("speech_timeout_sec") or self.variables.get("speech_timeout_seconds")
+        try:
+            timeout = float(raw) if raw is not None else 10.0
+        except (TypeError, ValueError):
+            timeout = 10.0
+        return max(1.0, min(timeout, 60.0))
+
+    async def _record_user_utterance(self, text: str) -> None:
+        """Persist the latest workflow utterance for routing and later prompt templating."""
+        utterance = (text or "").strip()
+        if not utterance:
+            return
+        self.variables["last_utterance"] = utterance
+        self.variables["last_transcript"] = utterance
+        try:
+            self.session.last_transcript = utterance
+            self.session.last_transcription_ts = time.time()
+            if not hasattr(self.session, "conversation_history") or self.session.conversation_history is None:
+                self.session.conversation_history = []
+            self.session.conversation_history.append(
+                {
+                    "role": "user",
+                    "content": utterance,
+                    "timestamp": time.time(),
+                }
+            )
+            await self.session_store.upsert_call(self.session)
+        except Exception:
+            logger.debug(
+                "Failed to persist workflow utterance on session",
+                call_id=self.session.call_id,
+                exc_info=True,
+            )
+
+    def _conditions_need_transcript(self, conditions) -> bool:
+        """Return True when any condition is a plain edge label instead of an expression."""
+        return any(
+            bool(getattr(condition, "if_", "") or "") and not self._looks_like_condition_expression(condition.if_)
+            for condition in conditions or []
+        )
+
+    def _match_conditions_from_transcript(self, conditions, transcript: str) -> Optional[str]:
+        """Find the first condition whose label/expression matches the caller transcript."""
+        for condition in conditions or []:
+            raw_condition = getattr(condition, "if_", "") or ""
+            matched = False
+            if self._looks_like_condition_expression(raw_condition):
+                matched = self._evaluate_condition(raw_condition)
+            else:
+                cond_expr = self._resolve_variables(raw_condition)
+                matched = self._label_matches_transcript(cond_expr, transcript)
+
+            if matched:
+                logger.info(
+                    "Workflow transition matched caller speech",
+                    call_id=self.session.call_id,
+                    condition=raw_condition,
+                    goto=condition.goto,
+                    transcript_preview=(transcript or "")[:80],
+                )
+                return condition.goto
+
+        return None
+
+    @staticmethod
+    def _looks_like_condition_expression(expression: str) -> bool:
+        """Detect legacy expression-style branch conditions."""
+        expr = (expression or "").strip()
+        if not expr:
+            return False
+        expression_markers = (
+            "{{",
+            "}}",
+            "==",
+            "!=",
+            ">=",
+            "<=",
+            ">",
+            "<",
+            " in ",
+            " and ",
+            " or ",
+            " not ",
+        )
+        return any(marker in f" {expr} " for marker in expression_markers)
+
+    def _label_matches_transcript(self, label: str, transcript: str) -> bool:
+        """Simple V1 keyword/phrase matching for edge labels like 'oui'."""
+        normalized_transcript = self._normalize_match_text(transcript)
+        if not normalized_transcript:
+            return False
+
+        alternatives = [part.strip() for part in re.split(r"\s*\|\s*", label or "") if part.strip()]
+        if not alternatives and label:
+            alternatives = [label]
+
+        for alternative in alternatives:
+            normalized_label = self._normalize_match_text(alternative)
+            if not normalized_label:
+                continue
+            if normalized_label == normalized_transcript:
+                return True
+            pattern = rf"(?<!\w){re.escape(normalized_label)}(?!\w)"
+            if re.search(pattern, normalized_transcript):
+                return True
+        return False
+
+    @staticmethod
+    def _normalize_match_text(text: str) -> str:
+        """Normalize text for accent-insensitive, punctuation-insensitive matching."""
+        normalized = unicodedata.normalize("NFKD", (text or "").casefold())
+        without_marks = "".join(ch for ch in normalized if not unicodedata.combining(ch))
+        without_punctuation = re.sub(r"[^\w\s']", " ", without_marks, flags=re.UNICODE)
+        return re.sub(r"\s+", " ", without_punctuation).strip()
 
     def _evaluate_condition(self, expression: str) -> bool:
         """

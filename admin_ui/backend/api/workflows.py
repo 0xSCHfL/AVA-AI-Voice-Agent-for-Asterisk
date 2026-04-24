@@ -295,41 +295,35 @@ def _build_workflow_steps(nodes: List[Dict[str, Any]], edges: List[Dict[str, Any
 
         normalized_edges.append(ne)
 
-    # Index edges by source node id -> {edge_id: label}
-    edge_map: Dict[str, Dict[str, str]] = {}
+    # Index edges by source node id. Edge labels are caller-speech match labels.
+    edge_map: Dict[str, List[Dict[str, Any]]] = {}
     for edge in normalized_edges:
         fid = edge.get("from")
         if fid:
-            edge_map.setdefault(fid, {})
-            edge_map[fid][edge.get("id", "")] = edge.get("label") or ""
+            edge_map.setdefault(fid, [])
+            edge_map[fid].append(edge)
 
     engine_steps = []
     for node in normalized_nodes:
         node_id = node.get("id", "")
-        outgoing = edge_map.get(node_id, {})
-        labeled = {eid: lbl for eid, lbl in outgoing.items() if lbl}
+        outgoing = edge_map.get(node_id, [])
+        labeled = [edge for edge in outgoing if (edge.get("label") or "").strip()]
+        unlabeled = [edge for edge in outgoing if not (edge.get("label") or "").strip()]
 
         step = canvas_step_to_engine_step(node)
 
-        # Attach branch conditions if multiple outgoing edges have labels
-        if len(labeled) > 1:
-            conditions = []
-            for eid, lbl in labeled.items():
-                target = next((e.get("to") for e in normalized_edges if e.get("id") == eid), None)
-                if target:
-                    conditions.append({"if": lbl, "goto": target})
+        if labeled:
+            conditions = [
+                {"if": (edge.get("label") or "").strip(), "goto": edge.get("to")}
+                for edge in labeled
+                if edge.get("to")
+            ]
             if conditions:
                 step["conditions"] = conditions
-                step["type"] = "branch"
-                step.pop("tool", None)
-                step.pop("parameters", None)
-
-        elif len(labeled) == 1:
-            # Single labeled edge → attach as goto
-            eid = next(iter(labeled.keys()))
-            target = next((e.get("to") for e in normalized_edges if e.get("id") == eid), None)
-            if target:
-                step["next"] = target
+            if unlabeled and unlabeled[0].get("to"):
+                step["default"] = unlabeled[0].get("to")
+        elif len(outgoing) == 1 and outgoing[0].get("to"):
+            step["next"] = outgoing[0].get("to")
 
         engine_steps.append(step)
 

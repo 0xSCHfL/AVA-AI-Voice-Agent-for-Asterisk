@@ -538,6 +538,7 @@ class Engine:
         self._pipeline_queues: Dict[str, asyncio.Queue] = {}
         self._pipeline_tasks: Dict[str, asyncio.Task] = {}
         self._pipeline_transcript_queues: Dict[str, asyncio.Queue] = {}
+        self._workflow_transcript_queues: Dict[str, asyncio.Queue] = {}
         # Per-call background tasks (fire-and-forget) that should be cancelled on cleanup
         self._call_bg_tasks: Dict[str, Set[asyncio.Task]] = {}
         # Track calls where a pipeline was explicitly requested via AI_PROVIDER
@@ -3953,6 +3954,7 @@ class Engine:
                 task.cancel()
             getattr(self, "_pipeline_queues", {}).pop(session.call_id, None)
             getattr(self, "_pipeline_transcript_queues", {}).pop(session.call_id, None)
+            getattr(self, "_workflow_transcript_queues", {}).pop(session.call_id, None)
             self._pipeline_forced.pop(session.call_id, None)
         except Exception:
             pass
@@ -5909,6 +5911,7 @@ class Engine:
                     except Exception:
                         pass
                 self._pipeline_transcript_queues.pop(call_id, None)
+                self._workflow_transcript_queues.pop(call_id, None)
                 try:
                     await self._disable_pipeline_talk_detect(session)
                 except Exception:
@@ -10173,6 +10176,71 @@ class Engine:
         self._pipeline_tasks[call_id] = task
         logger.info("Pipeline runner started", call_id=call_id, pipeline=session.pipeline_name)
 
+    def _begin_workflow_transcript_capture(self, call_id: str) -> asyncio.Queue:
+        """Let a pre-provider workflow consume final STT transcripts for this call."""
+        q = self._workflow_transcript_queues.get(call_id)
+        if q is None:
+            q = asyncio.Queue(maxsize=8)
+            self._workflow_transcript_queues[call_id] = q
+        self._clear_workflow_transcripts(call_id)
+        logger.debug("Workflow transcript capture started", call_id=call_id)
+        return q
+
+    def _end_workflow_transcript_capture(self, call_id: str) -> None:
+        """Release workflow transcript capture so normal pipeline dialog can resume."""
+        q = self._workflow_transcript_queues.pop(call_id, None)
+        if q:
+            try:
+                q.put_nowait(None)
+            except asyncio.QueueFull:
+                pass
+        logger.debug("Workflow transcript capture stopped", call_id=call_id)
+
+    def _clear_workflow_transcripts(self, call_id: str) -> None:
+        """Drop any stale transcripts before a workflow node starts listening."""
+        q = self._workflow_transcript_queues.get(call_id)
+        if not q:
+            return
+        while True:
+            try:
+                q.get_nowait()
+            except asyncio.QueueEmpty:
+                break
+
+    async def _offer_workflow_transcript(self, call_id: str, transcript: str) -> bool:
+        """Publish a final STT transcript to the active workflow, if any."""
+        text = (transcript or "").strip()
+        if not text:
+            return False
+        q = self._workflow_transcript_queues.get(call_id)
+        if not q:
+            return False
+        try:
+            q.put_nowait(text)
+        except asyncio.QueueFull:
+            try:
+                q.get_nowait()
+            except asyncio.QueueEmpty:
+                pass
+            await q.put(text)
+        logger.debug(
+            "Workflow transcript queued",
+            call_id=call_id,
+            transcript_preview=text[:80],
+        )
+        return True
+
+    async def _wait_for_workflow_transcript(self, call_id: str, timeout_sec: float) -> Optional[str]:
+        """Wait for a final STT transcript routed to the active workflow."""
+        q = self._workflow_transcript_queues.get(call_id)
+        if not q:
+            return None
+        try:
+            item = await asyncio.wait_for(q.get(), timeout=max(1.0, float(timeout_sec)))
+        except asyncio.TimeoutError:
+            return None
+        return (item or "").strip() if item else None
+
     async def _pipeline_runner(self, call_id: str) -> None:
         """Minimal adapter-driven loop: STT -> LLM -> TTS -> file playback.
 
@@ -10392,6 +10460,15 @@ class Engine:
             # Final pass: ensure greeting can safely reference template variables.
             if greeting:
                 greeting = self._apply_prompt_template_substitution(greeting, session)
+
+            if getattr(session, "workflow_name", None) and not getattr(session, "workflow_completed", False):
+                if greeting:
+                    logger.info(
+                        "Pipeline greeting skipped because workflow owns the first prompt",
+                        call_id=call_id,
+                        workflow=getattr(session, "workflow_name", None),
+                    )
+                greeting = ""
             
             if greeting:
                 max_attempts = 2
@@ -11649,6 +11726,11 @@ class Engine:
                         if not normalized:
                             if pending_segments and flush_task is None:
                                 await schedule_flush()
+                            continue
+                        if self._workflow_transcript_queues.get(call_id):
+                            pending_segments.clear()
+                            await cancel_flush()
+                            await self._offer_workflow_transcript(call_id, normalized)
                             continue
                         pending_segments.append(normalized)
                         await maybe_respond(force=False)
