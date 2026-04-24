@@ -60,7 +60,7 @@ contexts:
       - Quand l'appelant indique que la conversation est terminée, dis un bref
         message de fin puis utilise l'outil hangup_call pour terminer l'appel.
         - Ne mentionne jamais les outils à l'appelant.
-    pipeline: hybrid_openai_tts
+    provider: google_live
     tools:
       - unified_transfer
       - check_extension_status
