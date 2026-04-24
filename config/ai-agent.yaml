@@ -124,7 +124,7 @@ fr_b2b:
       - Ne mentionne jamais les outils à l'appelant.
     provider: google_live
     tools:
-      - hangup_call
+- hangup_call
   fr_others:
     greeting: ''
     profile: telephony_ulaw_8k
